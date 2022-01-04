@@ -124,7 +124,7 @@ public:
 
 enum
 {
-	RegexCode_any = 300,	// Matches any character
+	RegexCode_any = 300, // Matches any character
 };
 
 void print_found(InputFacade& input_f, ostream& output, string& extracted)
@@ -197,7 +197,6 @@ list<int> regex_decode(string regex)
 	// 	cout << v << ", ";
 	// }
 	// cout << endl;
-
 
 	return decoded;
 }
