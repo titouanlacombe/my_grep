@@ -1,0 +1,34 @@
+>Titre Mon premier exemple de fichier texte
+>Auteur Nicolas
+
+Ce fichier vous montre a quoi ressemble un fichier texte lu en entree.
+Pour eviter les problemes de format, les accents ne sont pas autorises.
+Un tel fichier commence toujours par le mot cle Titre, precede d'un chevron,  et suivi du titre du texte; puis du mot cle Auteur precede d'un chevron suivi du nom de l'auteur.
+Vient ensuite un ou plusieurs paragraphes optionnels comme celui que vous lisez. 
+
+
+
+
+Les paragraphes sont separes par une ou plusieurs lignes blanches. Vous etes donc entrain de lire un deuxieme paragraphe.
+Les sections sont introduites par le symbole egal suivi du titre, comme ci-dessous.
+
+
+= Ma premiere section
+
+Ici vous pouvez ecrire vos paragraphes de section.
+Au besoin vous pouvez definir des sous sections, en les introduisant par deux symboles egal suivis du titre de sous section, comme ci-dessous.
+
+== Ma premiere sous Section
+
+Ici vous pouvez ecrire vos paragraphes de section toujours separes par une ou plusieurs lignes blanches.
+Il peut bien sur avoir plusieurs sous sections dans une meme section. En voici une deuxieme.
+
+== Au sujet des indexes
+
+Au besoin vous pouvez aussi ajouter des mots en #index en lui accolant devant un #symbole diese. Dans la phrase precedente les mots index et symbole seront donc mis en index lors du processus de compilation.
+
+= Au sujet de la table des matieres et des numeros de section
+
+La numerotation des sections et sous sections se fera automatiquement lors du processus de compilation. On utilisera une numerotation du style 1.3. qui signifiera  sous section 3 de la section 1. Actuellement vous etes en train de lire la section 2.
+
+Une table des matieres sera aussi generee lors de la compilation et inseree en tout debut de page HTML.
