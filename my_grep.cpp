@@ -122,6 +122,40 @@ public:
 	}
 };
 
+class RegexCharacter
+{
+public:
+	virtual bool operator==(const char& c) = 0;
+};
+
+class RegexBasicChar : public RegexCharacter
+{
+	char character;
+
+public:
+	RegexBasicChar(char c)
+	{
+		character = c;
+	}
+
+	virtual bool operator==(const char& c)
+	{
+		return character == c;
+	}
+};
+
+class RegexAnyChar : public RegexCharacter
+{
+public:
+	RegexAnyChar()
+	{}
+
+	virtual bool operator==(const char& c)
+	{
+		return true;
+	}
+};
+
 enum
 {
 	RegexCode_any = 300, // Matches any character
@@ -147,12 +181,12 @@ bool regex_equal(char c, int reg_char)
 	}
 }
 
-list<int> regex_decode(string regex)
+list<RegexCharacter*> regex_decode(string regex)
 {
 	stringstream pattern(regex);
 	InputFacade pattern_f(&pattern);
 
-	list<int> decoded;
+	list<RegexCharacter*> decoded;
 
 	int result;
 	char c;
@@ -164,19 +198,19 @@ list<int> regex_decode(string regex)
 
 			switch (next) {
 			case 't':
-				decoded.push_back('\t');
+				decoded.push_back(new RegexBasicChar('\t'));
 				break;
 
 			case 'n':
-				decoded.push_back('\n');
+				decoded.push_back(new RegexBasicChar('\n'));
 				break;
 
 			case '\\':
-				decoded.push_back('\\');
+				decoded.push_back(new RegexBasicChar('\\'));
 				break;
 
 			case '.':
-				decoded.push_back('.');
+				decoded.push_back(new RegexBasicChar('.'));
 				break;
 
 			default:
@@ -184,10 +218,10 @@ list<int> regex_decode(string regex)
 			}
 		}
 		else if (c == '.') {
-			decoded.push_back(RegexCode_any);
+			decoded.push_back(new RegexAnyChar());
 		}
 		else {
-			decoded.push_back(c);
+			decoded.push_back(new RegexBasicChar(c));
 		}
 	}
 
@@ -201,7 +235,7 @@ list<int> regex_decode(string regex)
 	return decoded;
 }
 
-void grep(istream& input, ostream& output, list<int> regex)
+void grep(istream& input, ostream& output, list<RegexCharacter*> regex)
 {
 	// Search pattern
 	InputFacade input_f(&input);
@@ -213,7 +247,7 @@ void grep(istream& input, ostream& output, list<int> regex)
 	while ((result = input_f.get()) != EOF) {
 		c = (char)result;
 
-		if (regex_equal(c, *pattern_it)) {
+		if (*(*pattern_it) == c) {
 			// Pattern success, searching next char
 			extracted.push_back(c);
 			pattern_it++;
@@ -249,7 +283,7 @@ int main(int argc, char const* argv[])
 		return -2;
 	}
 
-	list<int> decoded_pattern;
+	list<RegexCharacter*> decoded_pattern;
 	try {
 		// Decode pattern
 		decoded_pattern = regex_decode(argv[2]);
