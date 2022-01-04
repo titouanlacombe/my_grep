@@ -6,5 +6,5 @@ my_grep:
 	g++ my_grep.cpp -o my_grep
 	
 test: my_grep
-	./my_grep input.txt "indexes\t"
+	./my_grep input.txt "indexes"
 	
