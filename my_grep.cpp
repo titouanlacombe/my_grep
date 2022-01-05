@@ -162,12 +162,6 @@ public:
 	}
 };
 
-class RegexOperator
-{
-public:
-	virtual string execute(InputFacade& ss) = 0;
-};
-
 class Match
 {
 	bool success;
@@ -218,6 +212,13 @@ public:
 	}
 };
 
+class RegexOperator
+{
+public:
+	virtual string execute(InputFacade& ss) = 0;
+	virtual string toString() = 0;
+};
+
 class RegexBasicChar : public RegexOperator
 {
 	char character;
@@ -239,6 +240,11 @@ public:
 			return string();
 		}
 	}
+
+	virtual string toString()
+	{
+		return "{basic: " + c_to_string(character) + "}";
+	}
 };
 
 class RegexAnyChar : public RegexOperator
@@ -250,6 +256,11 @@ public:
 	virtual string execute(InputFacade& ss)
 	{
 		return string(1, ss.get());
+	}
+
+	virtual string toString()
+	{
+		return "{any}";
 	}
 };
 
@@ -298,12 +309,12 @@ public:
 			}
 		}
 
-		// cout << "Encoded: " << regex << endl;
-		// cout << "Pattern: ";
-		// for (int v :  {
-		// 	cout << v << ", ";
-		// }
-		// cout << endl;
+		cout << "Encoded: " << regex << endl;
+		cout << "Pattern: ";
+		for (RegexOperator* v : *this) {
+			cout << v->toString() << ", ";
+		}
+		cout << endl;
 	}
 
 	list<Match> execute(InputFacade& ss)
