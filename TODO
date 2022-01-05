@@ -1,5 +1,5 @@
-concatenation
-union
+debug:
+./my_grep input.txt ""
+./my_grep input.txt "\n"
+
 kleen star
-improve printing by supporting multiple spanning lines matches
-add special color to extracted

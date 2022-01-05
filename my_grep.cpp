@@ -199,20 +199,36 @@ public:
 		return success;
 	}
 
-	void print()
+	void print_line(ostream& output, int nb)
 	{
-		// cout << "Status: " << (success ? "Success" : "Aborted") << endl;
+		output << nb << "\t| ";
+	}
 
-		// Puts blue background on extracted
-		stringstream lines(line_start + "\e[44m" + extracted + "\e[0m" + line_end);
-		string line;
-
+	void print(ostream& output)
+	{
+		stringstream extracted_ss(extracted);
 		int line_nb = line_start_number;
-		while (!lines.eof()) {
-			getline(lines, line);
-			cout << line_nb << "\t| " << line << endl;
-			line_nb++;
+
+		// output << "Status: " << (success ? "Success" : "Aborted") << endl;
+
+		print_line(output, line_nb);
+		output << line_start << "\e[44m";
+
+		while (extracted_ss.peek() != EOF) {
+			char c = extracted_ss.get();
+
+			if (c == '\n') {
+				line_nb++;
+				output << "\e[0m" << endl;
+				print_line(output, line_nb);
+				output << "\e[44m";
+			}
+			else {
+				output << c;
+			}
 		}
+
+		output << "\e[0m" << line_end << endl;
 	}
 };
 
@@ -350,12 +366,12 @@ public:
 			// If reached end of regex add match to results
 			if (it == end()) {
 				current_match.end(ss.peek_line_end());
+				matches.push_back(current_match);
 			}
 			else {
 				current_match.abort();
+				// matches.push_back(current_match);
 			}
-
-			matches.push_back(current_match);
 		}
 
 		return matches;
@@ -419,11 +435,16 @@ int main(int argc, char const* argv[])
 		return -1;
 	}
 
+	if (matches.size() == 0) {
+		cout << "No matches found" << endl;
+		return -1;
+	}
+
 	// Prints the matches
+	cout << "Matches:" << endl;
 	for (Match& m : matches) {
-		if (m.is_success()) {
-			m.print();
-		}
+		m.print(cout);
+		cout << endl;
 	}
 
 	input.close();
