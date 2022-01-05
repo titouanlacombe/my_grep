@@ -194,17 +194,21 @@ public:
 		success = true;
 	}
 
+	bool is_success()
+	{
+		return success;
+	}
+
 	void print()
 	{
-		cout << "Status: " << (success ? "Success" : "Aborted") << endl;
+		// cout << "Status: " << (success ? "Success" : "Aborted") << endl;
 
 		// Puts blue background on extracted
 		stringstream lines(line_start + "\e[44m" + extracted + "\e[0m" + line_end);
 		string line;
 
 		int line_nb = line_start_number;
-		while (!lines.eof());
-		{
+		while (!lines.eof()) {
 			getline(lines, line);
 			cout << line_nb << "\t| " << line << endl;
 			line_nb++;
@@ -260,7 +264,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{any}";
+		return "{any char}";
 	}
 };
 
@@ -309,12 +313,12 @@ public:
 			}
 		}
 
-		cout << "Encoded: " << regex << endl;
-		cout << "Pattern: ";
-		for (RegexOperator* v : *this) {
-			cout << v->toString() << ", ";
-		}
-		cout << endl;
+		// cout << "Encoded: " << regex << endl;
+		// cout << "Pattern: ";
+		// for (RegexOperator* v : *this) {
+		// 	cout << v->toString() << ", ";
+		// }
+		// cout << endl;
 	}
 
 	list<Match> execute(InputFacade& ss)
@@ -326,10 +330,18 @@ public:
 			auto it = begin();
 			Match current_match(ss.get_line_start(), ss.get_lines_read());
 
+			// cout << "Match starting: ";
+			// ss.debug_pos(cout);
+
 			// Matches
 			string matched;
 			do {
+				// cout << "Cheking " << (*it)->toString() << " at '" << c_to_string(ss.peek());
+
 				matched = (*it)->execute(ss);
+
+				// cout << "' Matched: '" << matched << "'" << endl;
+
 				current_match.add(matched);
 				it++;
 			}
@@ -400,7 +412,7 @@ int main(int argc, char const* argv[])
 	list<Match> matches;
 	try {
 		Regex regex(argv[2]);
-		list<Match> matches = regex.execute(input);
+		matches = regex.execute(input);
 	}
 	catch (RegexError& e) {
 		std::cerr << e.what() << endl;
@@ -409,7 +421,9 @@ int main(int argc, char const* argv[])
 
 	// Prints the matches
 	for (Match& m : matches) {
-		m.print();
+		if (m.is_success()) {
+			m.print();
+		}
 	}
 
 	input.close();
