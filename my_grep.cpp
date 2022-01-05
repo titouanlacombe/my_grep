@@ -28,15 +28,53 @@ string c_to_string(char c)
 class InputFacade
 {
 	istream* input;
+
+	string current_line;
+
 	int lines_read = 0;
 	int chars_since_line_start = 0;
+
 	int last_line_chars = 0;
+
 	int result = 0;
 
 public:
 	InputFacade(istream* _input)
 	{
 		input = _input;
+	}
+
+	int peek()
+	{
+		return input->peek();
+	}
+
+	bool eof()
+	{
+		return input->eof();
+	}
+
+	int get_lines_read()
+	{
+		int lines, chars;
+		get_pos(lines, chars);
+		return lines;
+	}
+
+	string get_line_start()
+	{
+		return current_line;
+	}
+
+	string peek_line_end()
+	{
+		string line_end;
+		streampos pos = input->tellg(); // Save pos
+
+		getline(*input, line_end);
+
+		input->seekg(pos); // Restore pos
+		return line_end;
 	}
 
 	// Set line & chars with the current reading head position
@@ -81,9 +119,11 @@ public:
 			lines_read++;
 			last_line_chars = chars_since_line_start + 1;
 			chars_since_line_start = 0;
+			current_line.clear();
 		}
 		else {
 			chars_since_line_start++;
+			current_line.push_back((char)result);
 		}
 
 		return result;
@@ -122,13 +162,63 @@ public:
 	}
 };
 
-class RegexCharacter
+class RegexOperator
 {
 public:
-	virtual bool operator==(const char& c) = 0;
+	virtual string execute(InputFacade& ss) = 0;
 };
 
-class RegexBasicChar : public RegexCharacter
+class Match
+{
+	bool success;
+	int line_start_number;
+
+	string line_start;
+	string line_end;
+	string extracted;
+
+public:
+	Match(string current_line, int line)
+	{
+		line_start = current_line;
+		line_start_number = line;
+	}
+
+	void add(string& matched)
+	{
+		extracted += matched;
+	}
+
+	void abort()
+	{
+		success = false;
+	}
+
+	void end(string _line_end)
+	{
+		line_end = _line_end;
+		success = true;
+	}
+
+	void print()
+	{
+		cout << "Status: " << (success ? "Success" : "Aborted") << endl;
+
+		// Puts blue background on extracted
+		stringstream lines(line_start + "\e[44m" + extracted + "\e[0m" + line_end);
+		string line;
+
+		int line_nb = line_start_number;
+		while (!lines.eof());
+		{
+			getline(lines, line);
+			cout << line_nb << "\t| " << line << endl;
+			line_nb++;
+		}
+	}
+};
+
+class RegexBasicChar : public RegexOperator
 {
 	char character;
 
@@ -138,134 +228,146 @@ public:
 		character = c;
 	}
 
-	virtual bool operator==(const char& c)
+	virtual string execute(InputFacade& ss)
 	{
-		return character == c;
+		char c = ss.get();
+
+		if (c == character) {
+			return string(1, c);
+		}
+		else {
+			return string();
+		}
 	}
 };
 
-class RegexAnyChar : public RegexCharacter
+class RegexAnyChar : public RegexOperator
 {
 public:
 	RegexAnyChar()
 	{}
 
-	virtual bool operator==(const char& c)
+	virtual string execute(InputFacade& ss)
 	{
-		return true;
+		return string(1, ss.get());
 	}
 };
 
-enum
+class Regex : public list<RegexOperator*>
 {
-	RegexCode_any = 300, // Matches any character
-};
+public:
+	Regex(string regex)
+	{
+		stringstream pattern(regex);
+		InputFacade pattern_f(&pattern);
 
-void print_found(InputFacade& input_f, ostream& output, string& extracted)
-{
-	output << "Pattern found at: ";
-	input_f.debug_pos(output);
-	output << "Extracted: " << extracted << endl;
-}
+		int result;
+		char c;
+		while ((result = pattern_f.get()) != EOF) {
+			c = result;
 
-bool regex_equal(char c, int reg_char)
-{
-	if (c == reg_char) {
-		return true;
-	}
-	else if (reg_char == RegexCode_any) {
-		return true;
-	}
-	else {
-		return false;
-	}
-}
+			if (c == '\\') {
+				int next = pattern_f.get();
 
-list<RegexCharacter*> regex_decode(string regex)
-{
-	stringstream pattern(regex);
-	InputFacade pattern_f(&pattern);
+				switch (next) {
+				case 't':
+					push_back(new RegexBasicChar('\t'));
+					break;
 
-	list<RegexCharacter*> decoded;
+				case 'n':
+					push_back(new RegexBasicChar('\n'));
+					break;
 
-	int result;
-	char c;
-	while ((result = pattern_f.get()) != EOF) {
-		c = result;
+				case '\\':
+					push_back(new RegexBasicChar('\\'));
+					break;
 
-		if (c == '\\') {
-			int next = pattern_f.get();
+				case '.':
+					push_back(new RegexBasicChar('.'));
+					break;
 
-			switch (next) {
-			case 't':
-				decoded.push_back(new RegexBasicChar('\t'));
-				break;
-
-			case 'n':
-				decoded.push_back(new RegexBasicChar('\n'));
-				break;
-
-			case '\\':
-				decoded.push_back(new RegexBasicChar('\\'));
-				break;
-
-			case '.':
-				decoded.push_back(new RegexBasicChar('.'));
-				break;
-
-			default:
-				throw RegexError(string("Unknown '\\") + (char)next + "' character (code: " + to_string(next) + ")", pattern_f);
+				default:
+					throw RegexError(string("Unknown '\\") + (char)next + "' character (code: " + to_string(next) + ")", pattern_f);
+				}
+			}
+			else if (c == '.') {
+				push_back(new RegexAnyChar());
+			}
+			else {
+				push_back(new RegexBasicChar(c));
 			}
 		}
-		else if (c == '.') {
-			decoded.push_back(new RegexAnyChar());
-		}
-		else {
-			decoded.push_back(new RegexBasicChar(c));
-		}
+
+		// cout << "Encoded: " << regex << endl;
+		// cout << "Pattern: ";
+		// for (int v :  {
+		// 	cout << v << ", ";
+		// }
+		// cout << endl;
 	}
 
-	// cout << "Encoded: " << regex << endl;
-	// cout << "Pattern: ";
-	// for (int v : decoded) {
-	// 	cout << v << ", ";
-	// }
-	// cout << endl;
+	list<Match> execute(InputFacade& ss)
+	{
+		list<Match> matches;
 
-	return decoded;
-}
+		while (!ss.eof()) {
+			// Start the regex
+			auto it = begin();
+			Match current_match(ss.get_line_start(), ss.get_lines_read());
 
-void grep(istream& input, ostream& output, list<RegexCharacter*> regex)
+			// Matches
+			string matched;
+			do {
+				matched = (*it)->execute(ss);
+				current_match.add(matched);
+				it++;
+			}
+			while (!matched.empty() && !ss.eof() && it != end());
+
+			// If reached end of regex add match to results
+			if (it == end()) {
+				current_match.end(ss.peek_line_end());
+			}
+			else {
+				current_match.abort();
+			}
+
+			matches.push_back(current_match);
+		}
+
+		return matches;
+	}
+
+	list<Match> execute(istream& is)
+	{
+		InputFacade i(&is);
+		return execute(i);
+	}
+};
+
+class RegexOr : public Regex
 {
-	// Search pattern
-	InputFacade input_f(&input);
+	Regex* left;
+	Regex* right;
 
-	string extracted;
-	char c;
-	int result;
-	auto pattern_it = regex.begin();
-	while ((result = input_f.get()) != EOF) {
-		c = (char)result;
-
-		if (*(*pattern_it) == c) {
-			// Pattern success, searching next char
-			extracted.push_back(c);
-			pattern_it++;
-		}
-		else {
-			// Pattern fail, restart pattern
-			extracted.clear();
-			pattern_it = regex.begin();
-		}
-
-		if (pattern_it == regex.end()) {
-			// Found, print result & restart pattern
-			print_found(input_f, output, extracted);
-			extracted.clear();
-			pattern_it = regex.begin();
-		}
+public:
+	RegexOr(Regex* _left, Regex* _right)
+		: Regex("")
+	{
+		left = _left;
+		right = _right;
 	}
-}
+
+	virtual list<Match> execute(InputFacade& ss)
+	{
+		list<Match> a = left->execute(ss);
+		list<Match> b = right->execute(ss);
+
+		a.splice(a.end(), b); // Concatenate the two lists
+
+		return a;
+	}
+};
 
 int main(int argc, char const* argv[])
 {
@@ -283,17 +385,21 @@ int main(int argc, char const* argv[])
 		return -2;
 	}
 
-	list<RegexCharacter*> decoded_pattern;
+	// Compile & execute the regex
+	list<Match> matches;
 	try {
-		// Decode pattern
-		decoded_pattern = regex_decode(argv[2]);
+		Regex regex(argv[2]);
+		list<Match> matches = regex.execute(input);
 	}
 	catch (RegexError& e) {
 		std::cerr << e.what() << endl;
 		return -1;
 	}
 
-	grep(input, cout, decoded_pattern);
+	// Prints the matches
+	for (Match& m : matches) {
+		m.print();
+	}
 
 	input.close();
 

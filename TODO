@@ -1,2 +1,5 @@
-pattern loops
-character groups?
+concatenation
+union
+kleen star
+improve printing by supporting multiple spanning lines matches
+add special color to extracted
