@@ -284,59 +284,26 @@ public:
 	}
 };
 
+class RegexKleenStar : public RegexOperator
+{
+public:
+	RegexKleenStar()
+	{}
+
+	virtual string execute(InputFacade& ss)
+	{
+		return string(1, ss.get());
+	}
+
+	virtual string toString()
+	{
+		return "{kleen star}";
+	}
+};
+
 class Regex : public list<RegexOperator*>
 {
 public:
-	Regex(string regex)
-	{
-		stringstream pattern(regex);
-		InputFacade pattern_f(&pattern);
-
-		int result;
-		char c;
-		while ((result = pattern_f.get()) != EOF) {
-			c = result;
-
-			if (c == '\\') {
-				int next = pattern_f.get();
-
-				switch (next) {
-				case 't':
-					push_back(new RegexBasicChar('\t'));
-					break;
-
-				case 'n':
-					push_back(new RegexBasicChar('\n'));
-					break;
-
-				case '\\':
-					push_back(new RegexBasicChar('\\'));
-					break;
-
-				case '.':
-					push_back(new RegexBasicChar('.'));
-					break;
-
-				default:
-					throw RegexError(string("Unknown '\\") + (char)next + "' character (code: " + to_string(next) + ")", pattern_f);
-				}
-			}
-			else if (c == '.') {
-				push_back(new RegexAnyChar());
-			}
-			else {
-				push_back(new RegexBasicChar(c));
-			}
-		}
-
-		// cout << "Encoded: " << regex << endl;
-		// cout << "Pattern: ";
-		// for (RegexOperator* v : *this) {
-		// 	cout << v->toString() << ", ";
-		// }
-		// cout << endl;
-	}
-
 	list<Match> execute(InputFacade& ss)
 	{
 		list<Match> matches;
@@ -386,12 +353,12 @@ public:
 
 class RegexOr : public Regex
 {
-	Regex* left;
-	Regex* right;
+	Regex left;
+	Regex right;
 
 public:
-	RegexOr(Regex* _left, Regex* _right)
-		: Regex("")
+	RegexOr(Regex _left, Regex _right)
+		: Regex()
 	{
 		left = _left;
 		right = _right;
@@ -399,12 +366,71 @@ public:
 
 	virtual list<Match> execute(InputFacade& ss)
 	{
-		list<Match> a = left->execute(ss);
-		list<Match> b = right->execute(ss);
+		list<Match> a = left.execute(ss);
+		list<Match> b = right.execute(ss);
 
 		a.splice(a.end(), b); // Concatenate the two lists
 
 		return a;
+	}
+};
+
+class RegexFactory
+{
+public:
+	static Regex from_cstr(const char* str)
+	{
+		Regex current_reg;
+		stringstream pattern(str);
+		InputFacade pattern_f(&pattern);
+
+		char c;
+		while (pattern_f.peek() != EOF) {
+			c = pattern_f.get();
+
+			if (c == '\\') {
+				int next = pattern_f.get();
+
+				switch (next) {
+				case 't':
+					current_reg.push_back(new RegexBasicChar('\t'));
+					break;
+
+				case 'n':
+					current_reg.push_back(new RegexBasicChar('\n'));
+					break;
+
+				case '\\':
+					current_reg.push_back(new RegexBasicChar('\\'));
+					break;
+
+				case '.':
+					current_reg.push_back(new RegexBasicChar('.'));
+					break;
+
+				default:
+					throw RegexError(string("Unknown '\\") + (char)next + "' character (code: " + to_string(next) + ")", pattern_f);
+				}
+			}
+			else if (c == '.') {
+				current_reg.push_back(new RegexAnyChar());
+			}
+			else if (c == '*') {
+				current_reg.push_back(new RegexKleenStar());
+			}
+			else {
+				current_reg.push_back(new RegexBasicChar(c));
+			}
+		}
+
+		// cout << "Encoded: " << regex << endl;
+		// cout << "Pattern: ";
+		// for (RegexOperator* v : *this) {
+		// 	cout << v->toString() << ", ";
+		// }
+		// cout << endl;
+
+		return current_reg;
 	}
 };
 
@@ -427,7 +453,7 @@ int main(int argc, char const* argv[])
 	// Compile & execute the regex
 	list<Match> matches;
 	try {
-		Regex regex(argv[2]);
+		Regex regex = RegexFactory::from_cstr(argv[2]);
 		matches = regex.execute(input);
 	}
 	catch (RegexError& e) {
