@@ -378,6 +378,8 @@ public:
 				return new RegexBasicChar('\n');
 			case '\\':
 				return new RegexBasicChar('\\');
+			case '|':
+				return new RegexBasicChar('|');
 			case '.':
 				return new RegexBasicChar('.');
 			case EOF:
@@ -393,9 +395,13 @@ public:
 			return new RegexKleenStar();
 		case '|':
 		{
+			if (regex.empty()) {
+				throw RegexError("no option found before | operator", -1, cols);
+			}
+
 			// Remove last operator & replace with OR
-			auto _new = new RegexOr();
-			_new->options.push_back(regex.back());
+			auto or_op = new RegexOr();
+			or_op->options.push_back(regex.back());
 			regex.pop_back();
 
 			RegexOperator* op;
@@ -403,12 +409,16 @@ public:
 				op = create_next_op(input, regex, cols);
 
 				if (op != nullptr) {
-					_new->options.push_back(op);
+					or_op->options.push_back(op);
 				}
 			}
 			while (op != nullptr && input.get() == '|');
 
-			return _new;
+			if (or_op->options.size() == 1) {
+				throw RegexError("no option found after | operator", -1, cols);
+			}
+
+			return or_op;
 		}
 		case EOF:
 			return nullptr;
@@ -422,7 +432,7 @@ public:
 		stringstream input(str);
 		Regex regex;
 
-		int cols = 1;
+		int cols = 0;
 		RegexOperator* op = nullptr;
 		do {
 			op = create_next_op(input, regex, cols);
