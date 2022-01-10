@@ -1,11 +1,13 @@
-#include <fstream>
 #include <iostream>
-#include <string>
+#include <fstream>
 #include <sstream>
 #include <cstring>
+#include <string>
 #include <list>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 
 // Help to print special characters
 string i_to_string(int result)
@@ -24,217 +26,77 @@ string i_to_string(int result)
 	}
 }
 
-class InputFacade
-{
-	istream* input;
-
-	string current_line;
-
-	int lines_read = 0;
-	int chars_since_line_start = 0;
-
-	int last_line_chars = 0;
-
-	int result = 0;
-
-public:
-	InputFacade(istream* _input)
-	{
-		input = _input;
-	}
-
-	int peek()
-	{
-		return input->peek();
-	}
-
-	bool eof()
-	{
-		return input->eof();
-	}
-
-	int get_lines_read()
-	{
-		int lines, chars;
-		get_pos(lines, chars);
-		return lines;
-	}
-
-	string get_line_start()
-	{
-		return current_line;
-	}
-
-	streampos tellg()
-	{
-		return input->tellg();
-	}
-
-	void seekg(streampos& pos)
-	{
-		input->seekg(pos);
-	}
-
-	string peek_line_end()
-	{
-		string line_end;
-		streampos pos = input->tellg(); // Save pos
-
-		getline(*input, line_end);
-
-		input->seekg(pos); // Restore pos
-		return line_end;
-	}
-
-	// Set line & chars with the current reading head position
-	void get_pos(int& line, int& chars)
-	{
-		line = lines_read + 1;
-		chars = chars_since_line_start;
-
-		if (chars == 0) {
-			line--;
-			chars = last_line_chars;
-		}
-	}
-
-	// Prints current pos & char
-	void debug_pos(ostream& output)
-	{
-		int lines, chars;
-		get_pos(lines, chars);
-		output << "[" << lines << ", " << chars << "]: ";
-
-		if (result == EOF) {
-			output << "EOF" << endl;
-		}
-		else {
-			output << i_to_string(result) << " (" << result << ")" << endl;
-		}
-	}
-
-	// Get next char
-	int get()
-	{
-		result = input->get();
-
-		// debug_pos(cout);
-
-		if (result == EOF) {
-			return result;
-		}
-
-		if (result == '\n') {
-			lines_read++;
-			last_line_chars = chars_since_line_start + 1;
-			chars_since_line_start = 0;
-			current_line.clear();
-		}
-		else {
-			chars_since_line_start++;
-			current_line.push_back((char)result);
-		}
-
-		return result;
-	}
-
-	// Get until delimiter or EOF is reached
-	string get(char delimiter)
-	{
-		string buffer;
-
-		int result;
-		while ((result = get()) != EOF && result != delimiter) {
-			buffer.push_back((char)result);
-		}
-
-		return buffer;
-	}
-};
-
 class RegexError : std::exception
 {
 public:
 	string reason;
 	int line_number;
-	int char_number;
+	int column_number;
 
-	RegexError(string e, InputFacade& input)
+	RegexError(string e, int _line_number, int _column_number)
 	{
 		reason = e;
-		input.get_pos(line_number, char_number);
+		line_number = _line_number;
+		column_number = _column_number;
 	}
 
 	string what()
 	{
-		return reason + " at (" + to_string(line_number) + ", " + to_string(char_number) + ")";
+		return reason + " at (" + to_string(line_number) + ", " + to_string(column_number) + ")";
 	}
 };
 
 class Match
 {
-	bool success;
-	int line_start_number;
-
-	string line_start;
-	string line_end;
+	int start_line_nb;
+	string context_start;
+	string extracted;
+	string context_end;
 
 public:
-	stringstream data;
-
-	Match(string current_line, int line)
+	Match(int line_nb, string _context_start)
 	{
-		line_start = current_line;
-		line_start_number = line;
+		context_start = _context_start;
+		start_line_nb = line_nb;
 	}
 
-	Match(const Match& m)
+	void complete(stringstream& _extracted, string _context_end)
 	{
-		success = m.success;
-		line_start_number = m.line_start_number;
-		line_start = m.line_start;
-		line_end = m.line_end;
-		data = stringstream(m.data.str());
+		extracted = _extracted.str();
+		context_end = _context_end;
 	}
 
-	void abort()
+	void print_line_nb(ostream& output, int nb)
 	{
-		success = false;
-	}
+		string number = to_string(nb);
+		output << " " << number;
 
-	void end(string _line_end)
-	{
-		line_end = _line_end;
-		success = true;
-	}
+		int spacing = 4 - number.size();
+		for (size_t i = 0; i < spacing; i++) {
+			output << " ";
+		}
 
-	bool is_success()
-	{
-		return success;
-	}
-
-	void print_line(ostream& output, int nb)
-	{
-		output << nb << "\t| ";
+		output << "| ";
 	}
 
 	void print(ostream& output)
 	{
-		int line_nb = line_start_number;
-		stringstream copy(data.str());
+		stringstream stream(extracted);
 
-		// output << "Status: " << (success ? "Success" : "Aborted") << endl;
+		// Match context start
+		print_line_nb(output, start_line_nb);
+		output << context_start << "\e[44m";
 
-		print_line(output, line_nb);
-		output << line_start << "\e[44m";
-
-		while (copy.peek() != EOF) {
-			char c = copy.get();
+		// Match extracted data
+		int line_nb = start_line_nb;
+		while (stream.peek() != EOF) {
+			char c = stream.get();
 
 			if (c == '\n') {
 				line_nb++;
+				// Remove color for the new line
 				output << "\\n\e[0m" << endl;
-				print_line(output, line_nb);
+				print_line_nb(output, line_nb);
 				output << "\e[44m";
 			}
 			else {
@@ -242,7 +104,8 @@ public:
 			}
 		}
 
-		output << "\e[0m" << line_end << endl;
+		// Match context end
+		output << "\e[0m" << context_end << endl;
 	}
 };
 
@@ -250,7 +113,7 @@ class RegexOperator
 {
 protected:
 public:
-	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next) = 0;
+	virtual bool execute(istream& input, ostream& output, RegexOperator* next) = 0;
 	virtual string toString() = 0;
 };
 
@@ -264,7 +127,7 @@ public:
 		character = c;
 	}
 
-	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
+	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
 		int i = input.get();
 
@@ -285,7 +148,7 @@ public:
 class RegexAnyChar : public RegexOperator
 {
 public:
-	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
+	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
 		int c = input.get();
 
@@ -306,7 +169,7 @@ public:
 class RegexKleenStar : public RegexOperator
 {
 public:
-	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
+	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
 		// IF NO NEXT REGEX: MATCH ALL INPUT AND RETURN TRUE
 		// RegexOperator* _next;
@@ -353,27 +216,29 @@ public:
 		}
 	}
 
-	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
+	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
-		streampos pos;
 		stringstream _output;
-		bool success;
+		bool match_success;
+		streampos pos = input.tellg(); // Save pos
 
 		// Test all options
 		for (RegexOperator* option : options) {
-			pos = input.tellg(); // Save pos
+			// Reset _output & input
 			_output.clear();
-			success = option->execute(input, _output, next);
 			input.seekg(pos); // Restore pos
 
-			// If one option successfull
-			if (success) {
+			match_success = option->execute(input, _output, next);
+
+			// If one option successfull take it's matched extracted & return
+			if (match_success) {
 				output << _output.str();
 				return true;
 			}
 		}
 
 		// If all options failed
+		input.seekg(pos); // Restore pos
 		return false;
 	}
 
@@ -382,7 +247,7 @@ public:
 		string str("OR(");
 
 		for (RegexOperator* option : options) {
-			str += option->toString() + "| ";
+			str += option->toString() + " | ";
 		}
 
 		return str + ")";
@@ -399,45 +264,88 @@ public:
 		}
 	}
 
-	list<Match> search_in(InputFacade& input)
+	bool try_match(istream& input, Match& match, streampos& match_end_pos)
 	{
-		list<Match> matches;
-		RegexOperator* current, * previous;
-		bool success;
+		bool operator_success = true;
+		stringstream extracted_tmp;
+		string context_end;
 
-		while (input.peek() != EOF) {
-			// Match start
-			// cout << "\nMatch start" << endl;
-			Match match(input.get_line_start(), input.get_lines_read());
-			success = true;
+		// cout << "\nMatch start" << endl;
 
-			auto it = begin();
-			while (success && it != end()) {
-				// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-				success = (*it)->execute(input, match.data, *(++it));
-				// cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
+		// For each operators
+		auto it = begin();
+		while (operator_success && it != end()) {
+			// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+			// cout << "Current op: " << ((*it) == nullptr ? "null" : (*it)->toString()) << endl;
+			operator_success = (*it)->execute(input, extracted_tmp, *(++it));
+		}
+
+		if (operator_success) {
+			// cout << "Match operator_success" << endl;
+
+			// Save the pos before the potential getline
+			match_end_pos = input.tellg();
+
+			match.complete(extracted_tmp, context_end);
+		}
+
+		// cout << "Match failure" << endl;
+		return operator_success;
+	}
+
+	void skip_to_pos(istream& input, streampos& new_pos, string& current_line, int& line, int& col)
+	{
+		while (input.tellg() < new_pos) {
+			// Increment pos
+			int r = input.get();
+			if (r == EOF) {
+				return;
 			}
 
-			if (success) {
-				// Match success
-				// cout << "Match success" << endl;
-				match.end(input.peek_line_end());
-				matches.push_back(match);
+			if (r == '\n') {
+				current_line.clear();
+				line++;
+				col = 1;
 			}
 			else {
-				// Match failure
-				// cout << "Match failure" << endl;
-				match.abort();
+				current_line.push_back((char)r);
+				col++;
 			}
+		}
+	}
+
+	list<Match> search_in(istream& input)
+	{
+		list<Match> matches;
+
+		// Position
+		string current_line;
+		int line = 1;
+		int col = 1;
+
+		while (input.peek() != EOF) {
+			// Match vars
+			streampos saved_pos = input.tellg(), new_pos;
+			bool match_success = true;
+
+			Match match(line, current_line);
+			match_success = try_match(input, match, new_pos);
+
+			if (match_success) {
+				matches.push_back(match);
+				// Keep new pos
+			}
+			else {
+				// Indent old pos
+				new_pos = saved_pos.operator+(1);
+			}
+
+			// Rewinding to update lines & cols
+			input.seekg(saved_pos);
+			skip_to_pos(input, new_pos, current_line, line, col);
 		}
 
 		return matches;
-	}
-
-	list<Match> search_in(istream& is)
-	{
-		InputFacade i(&is);
-		return search_in(i);
 	}
 
 	string toString()
@@ -453,14 +361,16 @@ public:
 class RegexFactory
 {
 public:
-	static RegexOperator* create_next_op(InputFacade& input)
+	static RegexOperator* create_next_op(istream& input, RegexOperator* previous, int& cols)
 	{
 		// TODO: implement OR
 		int c = input.get();
+		cols++;
 		switch (c) {
 		case '\\':
 		{
 			int antislash_command = input.get();
+			cols++;
 			switch (antislash_command) {
 			case 't':
 				return new RegexBasicChar('\t');
@@ -471,9 +381,9 @@ public:
 			case '.':
 				return new RegexBasicChar('.');
 			case EOF:
-				throw RegexError("EOF Reached after '\\' char", input);
+				throw RegexError("EOF Reached after '\\' char", -1, cols);
 			default:
-				throw RegexError(string("Unknown '\\") + (char)antislash_command + "' character (code: " + to_string(antislash_command) + ")", input);
+				throw RegexError(string("Unknown '\\") + (char)antislash_command + "' character (code: " + to_string(antislash_command) + ")", -1, cols);
 			}
 			break;
 		}
@@ -481,6 +391,13 @@ public:
 			return new RegexAnyChar();
 		case '*':
 			return new RegexKleenStar();
+		case '|':
+		{
+			auto _new = new RegexOr();
+			_new->options.push_back(previous);
+			_new->options.push_back(create_next_op(input, _new, cols));
+			return _new;
+		}
 		case EOF:
 			return nullptr;
 		default:
@@ -488,10 +405,10 @@ public:
 		}
 	}
 
-	static RegexOperator* create_next_op_wrapper(InputFacade& input, Regex& regex)
+	static RegexOperator* create_next_op_wrapper(istream& input, RegexOperator* previous, int& cols, Regex& regex)
 	{
 		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-		RegexOperator* op = create_next_op(input);
+		RegexOperator* op = create_next_op(input, previous, cols);
 		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
 
 		if (op != nullptr) {
@@ -503,17 +420,17 @@ public:
 
 	static Regex from_cstr(const char* str)
 	{
-		stringstream ss(str);
-		InputFacade input(&ss);
+		stringstream input(str);
 		Regex regex;
 
-		RegexOperator* op = create_next_op_wrapper(input, regex);
+		int cols = 1;
+		RegexOperator* op = create_next_op_wrapper(input, nullptr, cols, regex);
 		while (op != nullptr) {
-			op = create_next_op_wrapper(input, regex);
+			op = create_next_op_wrapper(input, op, cols, regex);
 		}
 
 		if (regex.empty()) {
-			throw RegexError("Empty regex", input);
+			throw RegexError("Empty regex", -1, cols);
 		}
 
 		cout << "Raw: '" << str << "'" << endl;
@@ -541,6 +458,7 @@ int main(int argc, char const* argv[])
 
 	// Compile & search the regex
 	list<Match> matches;
+	auto t0 = high_resolution_clock::now();
 	try {
 		Regex regex = RegexFactory::from_cstr(argv[2]);
 		matches = regex.search_in(input);
@@ -549,6 +467,9 @@ int main(int argc, char const* argv[])
 		std::cerr << "Error: " << e.what() << endl;
 		return -1;
 	}
+	auto dt = duration_cast<milliseconds>(high_resolution_clock::now() - t0).count();
+
+	cout << "Execution time: " << dt << " ms" << endl;
 
 	if (matches.size() == 0) {
 		cout << "No matches found" << endl;
