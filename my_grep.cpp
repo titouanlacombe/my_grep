@@ -233,7 +233,7 @@ public:
 
 			if (c == '\n') {
 				line_nb++;
-				output << "\e[0m" << endl;
+				output << "\\n\e[0m" << endl;
 				print_line(output, line_nb);
 				output << "\e[44m";
 			}
@@ -308,6 +308,7 @@ class RegexKleenStar : public RegexOperator
 public:
 	virtual bool execute(InputFacade& input, ostream& output)
 	{
+		// IF NO NEXT REGEX: MATCH ALL INPUT AND RETURN TRUE
 		// RegexOperator* _next;
 		// streampos pos;
 		// stringstream _output;
@@ -511,6 +512,10 @@ public:
 		RegexOperator* op = create_next_op_wrapper(input, regex);
 		while (op != nullptr) {
 			op = create_next_op_wrapper(input, regex);
+		}
+
+		if (regex.empty()) {
+			throw RegexError("Empty regex", input);
 		}
 
 		cout << "Raw: '" << str << "'" << endl;
