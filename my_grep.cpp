@@ -431,10 +431,39 @@ public:
 		RegexOperator* current = first;
 
 		while (!input.eof()) {
+			cout << "Searching match start" << endl;
+			cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
 			current = current->execute(input, output);
+			cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
+
+			// Match not started
+			if (current == nullptr) {
+				continue;
+			}
+
+			// Match started
+			cout << "Match started" << endl;
+			Match match(input.get_line_start(), input.get_lines_read());
 
 			while (current != nullptr && current != last) {
+				cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+				current = current->execute(input, output);
+				cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
+			}
 
+			// Match add matched
+			match.add(output.str());
+
+			if (current == last) {
+				// Match success
+				cout << "Match success" << endl;
+				match.end(input.peek_line_end());
+				matches.push_back(match);
+			}
+			else {
+				// Match failure
+				cout << "Match failure" << endl;
+				match.abort();
 			}
 		}
 
@@ -453,6 +482,7 @@ class RegexFactory
 public:
 	static RegexOperator* create_next_op(InputFacade& input)
 	{
+		// TODO: implement OR
 		int c = input.get();
 		switch (c) {
 		case '\\':
@@ -485,24 +515,22 @@ public:
 		}
 	}
 
-	static RegexOperator* create_next_op_wrapper(InputFacade& input)
-	{
-		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-		RegexOperator* op = create_next_op(input);
-		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
-		return op;
-	}
-
 	static Regex from_cstr(const char* str)
 	{
 		stringstream ss(str);
 		InputFacade input(&ss);
 
-		RegexOperator* first = create_next_op_wrapper(input);
-		RegexOperator* current = first;
+		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+		RegexOperator* first = create_next_op(input);
+		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
 
+		RegexOperator* current = first;
 		while (current != nullptr) {
-			current = current->append_regex(create_next_op_wrapper(input));
+			// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+			RegexOperator* op = create_next_op(input);
+			// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
+
+			current = current->append_regex(op);
 		}
 
 		cout << "Raw: '" << str << "'" << endl;
