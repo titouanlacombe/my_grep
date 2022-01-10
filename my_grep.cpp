@@ -178,18 +178,23 @@ class Match
 
 	string line_start;
 	string line_end;
-	string extracted;
 
 public:
+	stringstream data;
+
 	Match(string current_line, int line)
 	{
 		line_start = current_line;
 		line_start_number = line;
 	}
 
-	void add(string matched)
+	Match(const Match& m)
 	{
-		extracted += matched;
+		success = m.success;
+		line_start_number = m.line_start_number;
+		line_start = m.line_start;
+		line_end = m.line_end;
+		data = stringstream(m.data.str());
 	}
 
 	void abort()
@@ -215,16 +220,16 @@ public:
 
 	void print(ostream& output)
 	{
-		stringstream extracted_ss(extracted);
 		int line_nb = line_start_number;
+		stringstream copy(data.str());
 
 		// output << "Status: " << (success ? "Success" : "Aborted") << endl;
 
 		print_line(output, line_nb);
 		output << line_start << "\e[44m";
 
-		while (extracted_ss.peek() != EOF) {
-			char c = extracted_ss.get();
+		while (copy.peek() != EOF) {
+			char c = copy.get();
 
 			if (c == '\n') {
 				line_nb++;
@@ -244,32 +249,9 @@ public:
 class RegexOperator
 {
 protected:
-	RegexOperator* next = nullptr;
-
 public:
-	virtual ~RegexOperator()
-	{
-		if (next != nullptr) {
-			delete next;
-		}
-	}
-
-	RegexOperator* append_regex(RegexOperator* _next)
-	{
-		next = _next;
-		return next;
-	}
-
-	virtual string toString()
-	{
-		if (next == nullptr) {
-			return string();
-		}
-
-		return ", " + next->toString();
-	}
-
-	virtual RegexOperator* execute(InputFacade& input, ostream& output) = 0;
+	virtual bool execute(InputFacade& input, ostream& output) = 0;
+	virtual string toString() = 0;
 };
 
 class RegexBasicChar : public RegexOperator
@@ -282,81 +264,87 @@ public:
 		character = c;
 	}
 
-	virtual RegexOperator* execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output)
 	{
-		char c = input.get();
+		int i = input.get();
 
-		if (c == character) {
-			output << c;
-			return next;
+		if (i == character) {
+			output << (char)i;
+			return true;
 		}
 
-		return nullptr;
+		return false;
 	}
 
 	virtual string toString()
 	{
-		return "Basic(" + i_to_string(character) + ")" + RegexOperator::toString();
+		return "Basic(" + i_to_string(character) + ")";
 	}
 };
 
 class RegexAnyChar : public RegexOperator
 {
 public:
-	virtual RegexOperator* execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output)
 	{
-		output << input.get();
-		return next;
+		int c = input.get();
+
+		if (c == EOF) {
+			return false;
+		}
+
+		output << (char)c;
+		return true;
 	}
 
 	virtual string toString()
 	{
-		return "Any()" + RegexOperator::toString();
+		return "Any()";
 	}
 };
 
 class RegexKleenStar : public RegexOperator
 {
 public:
-	virtual RegexOperator* execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output)
 	{
-		RegexOperator* _next;
-		streampos pos;
-		stringstream _output;
+		// RegexOperator* _next;
+		// streampos pos;
+		// stringstream _output;
 
-		// While next is not valid add char to match
-		do {
-			pos = input.tellg(); // Save pos
-			_output.clear();
-			_next = next->execute(input, _output);
-			input.seekg(pos); // Restore pos
+		// // While next is not valid add char to match
+		// do {
+		// 	pos = input.tellg(); // Save pos
+		// 	_output.clear();
+		// 	_next = next->execute(input, _output);
+		// 	input.seekg(pos); // Restore pos
 
-			if (_next == nullptr) {
-				// Add one char to match
-				output << input.get();
-			}
-		}
-		while (!input.eof() && _next == nullptr);
+		// 	if (_next == nullptr) {
+		// 		// Add one char to match
+		// 		output << input.get();
+		// 	}
+		// }
+		// while (!input.eof() && _next == nullptr);
 
-		// If next successfull add the matched str in output
-		if (_next != nullptr) {
-			output << _output.str();
-		}
+		// // If next successfull add the matched str in output
+		// if (_next != nullptr) {
+		// 	output << _output.str();
+		// }
 
-		return _next;
+		return false;
 	}
 
 	virtual string toString()
 	{
-		return "Star()" + RegexOperator::toString();
+		return "Star()";
 	}
 };
 
 class RegexOr : public RegexOperator
 {
+public:
 	list<RegexOperator*> options;
 
-public:
 	~RegexOr()
 	{
 		for (RegexOperator* option : options) {
@@ -364,34 +352,28 @@ public:
 		}
 	}
 
-	void add_option(RegexOperator* opt)
+	virtual bool execute(InputFacade& input, ostream& output)
 	{
-		opt->append_regex(this);
-		options.push_back(opt);
-	}
-
-	virtual RegexOperator* execute(InputFacade& input, ostream& output)
-	{
-		RegexOperator* _next;
 		streampos pos;
 		stringstream _output;
+		bool success;
 
 		// Test all options
 		for (RegexOperator* option : options) {
 			pos = input.tellg(); // Save pos
 			_output.clear();
-			_next = option->execute(input, _output);
+			success = option->execute(input, _output);
 			input.seekg(pos); // Restore pos
 
-			// If option successfull return the next and add the match in output
-			if (_next != nullptr) {
+			// If one option successfull
+			if (success) {
 				output << _output.str();
-				return next;
+				return true;
 			}
 		}
 
-		// If all options failed return null
-		return nullptr;
+		// If all options failed
+		return false;
 	}
 
 	virtual string toString()
@@ -402,7 +384,7 @@ public:
 			str += option->toString() + "| ";
 		}
 
-		return str + ")" + RegexOperator::toString();
+		return str + ")";
 	}
 };
 
@@ -419,28 +401,27 @@ public:
 	list<Match> execute(InputFacade& input)
 	{
 		list<Match> matches;
-		stringstream output;
 		RegexOperator* current, * previous;
+		bool success;
 
 		while (input.peek() != EOF) {
 			// Match start
 			// cout << "\nMatch start" << endl;
 			Match match(input.get_line_start(), input.get_lines_read());
 
-			current = front();
-			while (current != nullptr) {
+			for (RegexOperator* op : *this) {
 				// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-				previous = current;
-				current = current->execute(input, output);
+				success = op->execute(input, match.data);
 				// cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
+
+				if (!success) {
+					break;
+				}
 			}
 
-			// Match add matched
-			match.add(output.str());
-
-			if (previous == back()) {
+			if (success) {
 				// Match success
-				cout << "Match success" << endl;
+				// cout << "Match success" << endl;
 				match.end(input.peek_line_end());
 				matches.push_back(match);
 			}
