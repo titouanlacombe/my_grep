@@ -361,7 +361,7 @@ public:
 class RegexFactory
 {
 public:
-	static RegexOperator* create_next_op(istream& input, RegexOperator* previous, int& cols)
+	static RegexOperator* create_next_op(istream& input, Regex& regex, int& cols)
 	{
 		// TODO: implement OR
 		int c = input.get();
@@ -393,9 +393,21 @@ public:
 			return new RegexKleenStar();
 		case '|':
 		{
+			// Remove last operator & replace with OR
 			auto _new = new RegexOr();
-			_new->options.push_back(previous);
-			_new->options.push_back(create_next_op(input, _new, cols));
+			_new->options.push_back(regex.back());
+			regex.pop_back();
+
+			RegexOperator* op;
+			do {
+				op = create_next_op(input, regex, cols);
+
+				if (op != nullptr) {
+					_new->options.push_back(op);
+				}
+			}
+			while (op != nullptr && input.get() == '|');
+
 			return _new;
 		}
 		case EOF:
@@ -405,29 +417,21 @@ public:
 		}
 	}
 
-	static RegexOperator* create_next_op_wrapper(istream& input, RegexOperator* previous, int& cols, Regex& regex)
-	{
-		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-		RegexOperator* op = create_next_op(input, previous, cols);
-		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
-
-		if (op != nullptr) {
-			regex.push_back(op);
-		}
-
-		return op;
-	}
-
 	static Regex from_cstr(const char* str)
 	{
 		stringstream input(str);
 		Regex regex;
 
 		int cols = 1;
-		RegexOperator* op = create_next_op_wrapper(input, nullptr, cols, regex);
-		while (op != nullptr) {
-			op = create_next_op_wrapper(input, op, cols, regex);
+		RegexOperator* op = nullptr;
+		do {
+			op = create_next_op(input, regex, cols);
+
+			if (op != nullptr) {
+				regex.push_back(op);
+			}
 		}
+		while (op != nullptr);
 
 		if (regex.empty()) {
 			throw RegexError("Empty regex", -1, cols);
