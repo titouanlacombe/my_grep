@@ -250,7 +250,7 @@ class RegexOperator
 {
 protected:
 public:
-	virtual bool execute(InputFacade& input, ostream& output) = 0;
+	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next) = 0;
 	virtual string toString() = 0;
 };
 
@@ -264,7 +264,7 @@ public:
 		character = c;
 	}
 
-	virtual bool execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
 	{
 		int i = input.get();
 
@@ -285,7 +285,7 @@ public:
 class RegexAnyChar : public RegexOperator
 {
 public:
-	virtual bool execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
 	{
 		int c = input.get();
 
@@ -306,7 +306,7 @@ public:
 class RegexKleenStar : public RegexOperator
 {
 public:
-	virtual bool execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
 	{
 		// IF NO NEXT REGEX: MATCH ALL INPUT AND RETURN TRUE
 		// RegexOperator* _next;
@@ -353,7 +353,7 @@ public:
 		}
 	}
 
-	virtual bool execute(InputFacade& input, ostream& output)
+	virtual bool execute(InputFacade& input, ostream& output, RegexOperator* next)
 	{
 		streampos pos;
 		stringstream _output;
@@ -363,7 +363,7 @@ public:
 		for (RegexOperator* option : options) {
 			pos = input.tellg(); // Save pos
 			_output.clear();
-			success = option->execute(input, _output);
+			success = option->execute(input, _output, next);
 			input.seekg(pos); // Restore pos
 
 			// If one option successfull
@@ -399,7 +399,7 @@ public:
 		}
 	}
 
-	list<Match> execute(InputFacade& input)
+	list<Match> search_in(InputFacade& input)
 	{
 		list<Match> matches;
 		RegexOperator* current, * previous;
@@ -409,15 +409,13 @@ public:
 			// Match start
 			// cout << "\nMatch start" << endl;
 			Match match(input.get_line_start(), input.get_lines_read());
+			success = true;
 
-			for (RegexOperator* op : *this) {
+			auto it = begin();
+			while (success && it != end()) {
 				// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-				success = op->execute(input, match.data);
+				success = (*it)->execute(input, match.data, *(++it));
 				// cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
-
-				if (!success) {
-					break;
-				}
 			}
 
 			if (success) {
@@ -436,10 +434,10 @@ public:
 		return matches;
 	}
 
-	list<Match> execute(istream& is)
+	list<Match> search_in(istream& is)
 	{
 		InputFacade i(&is);
-		return execute(i);
+		return search_in(i);
 	}
 
 	string toString()
@@ -541,11 +539,11 @@ int main(int argc, char const* argv[])
 		return -2;
 	}
 
-	// Compile & execute the regex
+	// Compile & search the regex
 	list<Match> matches;
 	try {
 		Regex regex = RegexFactory::from_cstr(argv[2]);
-		matches = regex.execute(input);
+		matches = regex.search_in(input);
 	}
 	catch (RegexError& e) {
 		std::cerr << "Error: " << e.what() << endl;
