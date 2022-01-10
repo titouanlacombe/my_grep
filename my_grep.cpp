@@ -266,7 +266,7 @@ public:
 			return string();
 		}
 
-		return next->toString();
+		return ", " + next->toString();
 	}
 
 	virtual RegexOperator* execute(InputFacade& input, stringstream& output) = 0;
@@ -296,7 +296,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{basic: " + i_to_string(character) + "}, " + RegexOperator::toString();
+		return "Basic(" + i_to_string(character) + ")" + RegexOperator::toString();
 	}
 };
 
@@ -311,7 +311,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{any char}, " + RegexOperator::toString();
+		return "Any()" + RegexOperator::toString();
 	}
 };
 
@@ -348,7 +348,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{kleen star}, " + RegexOperator::toString();
+		return "Star()" + RegexOperator::toString();
 	}
 };
 
@@ -396,13 +396,13 @@ public:
 
 	virtual string toString()
 	{
-		string str("{or: }");
+		string str("OR(");
 
 		for (RegexOperator* option : options) {
-			str += option->toString() + "|";
+			str += option->toString() + "| ";
 		}
 
-		return str + "}, " + RegexOperator::toString();
+		return str + ")" + RegexOperator::toString();
 	}
 };
 
@@ -468,7 +468,7 @@ public:
 			case '.':
 				return new RegexBasicChar('.');
 			case EOF:
-				throw RegexError("EOF Reached", input);
+				throw RegexError("EOF Reached after '\\' char", input);
 			default:
 				throw RegexError(string("Unknown '\\") + (char)antislash_command + "' character (code: " + to_string(antislash_command) + ")", input);
 			}
@@ -479,7 +479,7 @@ public:
 		case '*':
 			return new RegexKleenStar();
 		case EOF:
-			throw RegexError("EOF Reached", input);
+			return nullptr;
 		default:
 			return new RegexBasicChar(c);
 		}
@@ -487,9 +487,9 @@ public:
 
 	static RegexOperator* create_next_op_wrapper(InputFacade& input)
 	{
-		cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
 		RegexOperator* op = create_next_op(input);
-		cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
+		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
 		return op;
 	}
 
@@ -501,11 +501,11 @@ public:
 		RegexOperator* first = create_next_op_wrapper(input);
 		RegexOperator* current = first;
 
-		while (!input.eof()) {
+		while (current != nullptr) {
 			current = current->append_regex(create_next_op_wrapper(input));
 		}
 
-		cout << "Raw: " << str << endl;
+		cout << "Raw: '" << str << "'" << endl;
 		cout << "Pattern: " << first->toString() << endl;
 
 		return Regex(first, current);
