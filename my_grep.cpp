@@ -406,55 +406,39 @@ public:
 	}
 };
 
-class Regex
+class Regex : public list<RegexOperator*>
 {
-	RegexOperator* first;
-	RegexOperator* last;
-
 public:
-
-	Regex(RegexOperator* _first, RegexOperator* _last)
-	{
-		first = _first;
-		last = _last;
-	}
-
 	~Regex()
 	{
-		delete first;
+		for (RegexOperator* op : *this) {
+			delete op;
+		}
 	}
 
 	list<Match> execute(InputFacade& input)
 	{
 		list<Match> matches;
 		stringstream output;
-		RegexOperator* current = first;
+		RegexOperator* current, * previous;
 
-		while (!input.eof()) {
-			cout << "Searching match start" << endl;
-			cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-			current = current->execute(input, output);
-			cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
-
-			// Match not started
-			if (current == nullptr) {
-				continue;
-			}
-
-			// Match started
-			cout << "Match started" << endl;
+		while (input.peek() != EOF) {
+			// Match start
+			// cout << "\nMatch start" << endl;
 			Match match(input.get_line_start(), input.get_lines_read());
 
-			while (current != nullptr && current != last) {
-				cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+			current = front();
+			while (current != nullptr) {
+				// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+				previous = current;
 				current = current->execute(input, output);
-				cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
+				// cout << "Current: " << (current == nullptr ? "null" : current->toString()) << endl;
 			}
 
 			// Match add matched
 			match.add(output.str());
 
-			if (current == last) {
+			if (previous == back()) {
 				// Match success
 				cout << "Match success" << endl;
 				match.end(input.peek_line_end());
@@ -462,7 +446,7 @@ public:
 			}
 			else {
 				// Match failure
-				cout << "Match failure" << endl;
+				// cout << "Match failure" << endl;
 				match.abort();
 			}
 		}
@@ -474,6 +458,15 @@ public:
 	{
 		InputFacade i(&is);
 		return execute(i);
+	}
+
+	string toString()
+	{
+		string str;
+		for (RegexOperator* op : *this) {
+			str += op->toString() + ", ";
+		}
+		return str;
 	}
 };
 
@@ -515,28 +508,34 @@ public:
 		}
 	}
 
+	static RegexOperator* create_next_op_wrapper(InputFacade& input, Regex& regex)
+	{
+		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+		RegexOperator* op = create_next_op(input);
+		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
+
+		if (op != nullptr) {
+			regex.push_back(op);
+		}
+
+		return op;
+	}
+
 	static Regex from_cstr(const char* str)
 	{
 		stringstream ss(str);
 		InputFacade input(&ss);
+		Regex regex;
 
-		// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-		RegexOperator* first = create_next_op(input);
-		// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
-
-		RegexOperator* current = first;
-		while (current != nullptr) {
-			// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
-			RegexOperator* op = create_next_op(input);
-			// cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
-
-			current = current->append_regex(op);
+		RegexOperator* op = create_next_op_wrapper(input, regex);
+		while (op != nullptr) {
+			op = create_next_op_wrapper(input, regex);
 		}
 
 		cout << "Raw: '" << str << "'" << endl;
-		cout << "Pattern: " << first->toString() << endl;
+		cout << "Pattern: " << regex.toString() << endl;
 
-		return Regex(first, current);
+		return regex;
 	}
 };
 
