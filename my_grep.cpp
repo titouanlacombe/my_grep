@@ -8,20 +8,19 @@
 using namespace std;
 
 // Help to print special characters
-string c_to_string(char c)
+string i_to_string(int result)
 {
-	switch (c) {
+	switch (result) {
 	case '\n':
 		return string("\\n");
-
 	case '\r':
 		return string("\\r");
-
 	case '\t':
 		return string("\\t");
-
+	case EOF:
+		return string("EOF");
 	default:
-		return string(1, c);
+		return string(1, result);
 	}
 }
 
@@ -71,7 +70,7 @@ public:
 		return input->tellg();
 	}
 
-	void seekg(streampos pos)
+	void seekg(streampos& pos)
 	{
 		input->seekg(pos);
 	}
@@ -110,7 +109,7 @@ public:
 			output << "EOF" << endl;
 		}
 		else {
-			output << c_to_string(result) << " (" << result << ")" << endl;
+			output << i_to_string(result) << " (" << result << ")" << endl;
 		}
 	}
 
@@ -160,7 +159,7 @@ public:
 	int line_number;
 	int char_number;
 
-	RegexError(string e, InputFacade input)
+	RegexError(string e, InputFacade& input)
 	{
 		reason = e;
 		input.get_pos(line_number, char_number);
@@ -188,7 +187,7 @@ public:
 		line_start_number = line;
 	}
 
-	void add(string& matched)
+	void add(string matched)
 	{
 		extracted += matched;
 	}
@@ -261,8 +260,16 @@ public:
 		return next;
 	}
 
+	virtual string toString()
+	{
+		if (next == nullptr) {
+			return string();
+		}
+
+		return next->toString();
+	}
+
 	virtual RegexOperator* execute(InputFacade& input, stringstream& output) = 0;
-	virtual string toString() = 0;
 };
 
 class RegexBasicChar : public RegexOperator
@@ -289,7 +296,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{basic: " + c_to_string(character) + "}, " + next->toString();
+		return "{basic: " + i_to_string(character) + "}, " + RegexOperator::toString();
 	}
 };
 
@@ -304,7 +311,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{any char}, " + next->toString();
+		return "{any char}, " + RegexOperator::toString();
 	}
 };
 
@@ -341,7 +348,7 @@ public:
 
 	virtual string toString()
 	{
-		return "{kleen star}, " + next->toString();
+		return "{kleen star}, " + RegexOperator::toString();
 	}
 };
 
@@ -395,7 +402,7 @@ public:
 			str += option->toString() + "|";
 		}
 
-		return str + "}, " + next->toString();
+		return str + "}, " + RegexOperator::toString();
 	}
 };
 
@@ -444,7 +451,7 @@ public:
 class RegexFactory
 {
 public:
-	static RegexOperator* create_next_op(InputFacade input)
+	static RegexOperator* create_next_op(InputFacade& input)
 	{
 		int c = input.get();
 		switch (c) {
@@ -478,22 +485,28 @@ public:
 		}
 	}
 
+	static RegexOperator* create_next_op_wrapper(InputFacade& input)
+	{
+		cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
+		RegexOperator* op = create_next_op(input);
+		cout << "Created: " << (op == nullptr ? "null" : op->toString()) << endl;
+		return op;
+	}
+
 	static Regex from_cstr(const char* str)
 	{
 		stringstream ss(str);
 		InputFacade input(&ss);
 
-		RegexOperator* first = create_next_op(input);
+		RegexOperator* first = create_next_op_wrapper(input);
 		RegexOperator* current = first;
 
 		while (!input.eof()) {
-			current = current->append_regex(create_next_op(input));
+			current = current->append_regex(create_next_op_wrapper(input));
 		}
 
 		cout << "Raw: " << str << endl;
-		cout << "Pattern: ";
-		cout << first->toString();
-		cout << endl;
+		cout << "Pattern: " << first->toString() << endl;
 
 		return Regex(first, current);
 	}
