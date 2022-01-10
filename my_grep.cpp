@@ -269,7 +269,7 @@ public:
 		return ", " + next->toString();
 	}
 
-	virtual RegexOperator* execute(InputFacade& input, stringstream& output) = 0;
+	virtual RegexOperator* execute(InputFacade& input, ostream& output) = 0;
 };
 
 class RegexBasicChar : public RegexOperator
@@ -282,7 +282,7 @@ public:
 		character = c;
 	}
 
-	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
+	virtual RegexOperator* execute(InputFacade& input, ostream& output)
 	{
 		char c = input.get();
 
@@ -303,7 +303,7 @@ public:
 class RegexAnyChar : public RegexOperator
 {
 public:
-	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
+	virtual RegexOperator* execute(InputFacade& input, ostream& output)
 	{
 		output << input.get();
 		return next;
@@ -318,7 +318,7 @@ public:
 class RegexKleenStar : public RegexOperator
 {
 public:
-	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
+	virtual RegexOperator* execute(InputFacade& input, ostream& output)
 	{
 		RegexOperator* _next;
 		streampos pos;
@@ -370,7 +370,7 @@ public:
 		options.push_back(opt);
 	}
 
-	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
+	virtual RegexOperator* execute(InputFacade& input, ostream& output)
 	{
 		RegexOperator* _next;
 		streampos pos;
