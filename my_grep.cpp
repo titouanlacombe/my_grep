@@ -66,6 +66,16 @@ public:
 		return current_line;
 	}
 
+	streampos tellg()
+	{
+		return input->tellg();
+	}
+
+	void seekg(streampos pos)
+	{
+		input->seekg(pos);
+	}
+
 	string peek_line_end()
 	{
 		string line_end;
@@ -234,8 +244,24 @@ public:
 
 class RegexOperator
 {
+protected:
+	RegexOperator* next = nullptr;
+
 public:
-	virtual string execute(InputFacade& ss) = 0;
+	virtual ~RegexOperator()
+	{
+		if (next != nullptr) {
+			delete next;
+		}
+	}
+
+	RegexOperator* append_regex(RegexOperator* _next)
+	{
+		next = _next;
+		return next;
+	}
+
+	virtual RegexOperator* execute(InputFacade& input, stringstream& output) = 0;
 	virtual string toString() = 0;
 };
 
@@ -249,95 +275,159 @@ public:
 		character = c;
 	}
 
-	virtual string execute(InputFacade& ss)
+	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
 	{
-		char c = ss.get();
+		char c = input.get();
 
 		if (c == character) {
-			return string(1, c);
+			output << c;
+			return next;
 		}
-		else {
-			return string();
-		}
+
+		return nullptr;
 	}
 
 	virtual string toString()
 	{
-		return "{basic: " + c_to_string(character) + "}";
+		return "{basic: " + c_to_string(character) + "}, " + next->toString();
 	}
 };
 
 class RegexAnyChar : public RegexOperator
 {
 public:
-	RegexAnyChar()
-	{}
-
-	virtual string execute(InputFacade& ss)
+	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
 	{
-		return string(1, ss.get());
+		output << input.get();
+		return next;
 	}
 
 	virtual string toString()
 	{
-		return "{any char}";
+		return "{any char}, " + next->toString();
 	}
 };
 
 class RegexKleenStar : public RegexOperator
 {
 public:
-	RegexKleenStar()
-	{}
-
-	virtual string execute(InputFacade& ss)
+	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
 	{
-		return string(1, ss.get());
+		RegexOperator* _next;
+		streampos pos;
+		stringstream _output;
+
+		// While next is not valid add char to match
+		do {
+			pos = input.tellg(); // Save pos
+			_output.clear();
+			_next = next->execute(input, _output);
+			input.seekg(pos); // Restore pos
+
+			if (_next == nullptr) {
+				// Add one char to match
+				output << input.get();
+			}
+		}
+		while (!input.eof() && _next == nullptr);
+
+		// If next successfull add the matched str in output
+		if (_next != nullptr) {
+			output << _output.str();
+		}
+
+		return _next;
 	}
 
 	virtual string toString()
 	{
-		return "{kleen star}";
+		return "{kleen star}, " + next->toString();
 	}
 };
 
-class Regex : public list<RegexOperator*>
+class RegexOr : public RegexOperator
 {
+	list<RegexOperator*> options;
+
 public:
-	list<Match> execute(InputFacade& ss)
+	~RegexOr()
+	{
+		for (RegexOperator* option : options) {
+			delete option;
+		}
+	}
+
+	void add_option(RegexOperator* opt)
+	{
+		opt->append_regex(this);
+		options.push_back(opt);
+	}
+
+	virtual RegexOperator* execute(InputFacade& input, stringstream& output)
+	{
+		RegexOperator* _next;
+		streampos pos;
+		stringstream _output;
+
+		// Test all options
+		for (RegexOperator* option : options) {
+			pos = input.tellg(); // Save pos
+			_output.clear();
+			_next = option->execute(input, _output);
+			input.seekg(pos); // Restore pos
+
+			// If option successfull return the next and add the match in output
+			if (_next != nullptr) {
+				output << _output.str();
+				return next;
+			}
+		}
+
+		// If all options failed return null
+		return nullptr;
+	}
+
+	virtual string toString()
+	{
+		string str("{or: }");
+
+		for (RegexOperator* option : options) {
+			str += option->toString() + "|";
+		}
+
+		return str + "}, " + next->toString();
+	}
+};
+
+class Regex
+{
+	RegexOperator* first;
+	RegexOperator* last;
+
+public:
+
+	Regex(RegexOperator* _first, RegexOperator* _last)
+	{
+		first = _first;
+		last = _last;
+	}
+
+	~Regex()
+	{
+		delete first;
+	}
+
+	list<Match> execute(InputFacade& input)
 	{
 		list<Match> matches;
+		stringstream output;
+		RegexOperator* current = first;
 
-		while (!ss.eof()) {
-			// Start the regex
-			auto it = begin();
-			Match current_match(ss.get_line_start(), ss.get_lines_read());
+		while (!input.eof()) {
+			current = current->execute(input, output);
 
-			// cout << "Match starting: ";
-			// ss.debug_pos(cout);
+			while (current != nullptr && current != last) {
 
-			// Matches
-			string matched;
-			do {
-				// cout << "Cheking " << (*it)->toString() << " at '" << c_to_string(ss.peek());
-
-				matched = (*it)->execute(ss);
-
-				// cout << "' Matched: '" << matched << "'" << endl;
-
-				current_match.add(matched);
-				it++;
-			}
-			while (!matched.empty() && !ss.eof() && it != end());
-
-			// If reached end of regex add match to results
-			if (it == end()) {
-				current_match.end(ss.peek_line_end());
-				matches.push_back(current_match);
-			}
-			else {
-				current_match.abort();
-				// matches.push_back(current_match);
 			}
 		}
 
@@ -351,86 +441,61 @@ public:
 	}
 };
 
-class RegexOr : public Regex
-{
-	Regex left;
-	Regex right;
-
-public:
-	RegexOr(Regex _left, Regex _right)
-		: Regex()
-	{
-		left = _left;
-		right = _right;
-	}
-
-	virtual list<Match> execute(InputFacade& ss)
-	{
-		list<Match> a = left.execute(ss);
-		list<Match> b = right.execute(ss);
-
-		a.splice(a.end(), b); // Concatenate the two lists
-
-		return a;
-	}
-};
-
 class RegexFactory
 {
 public:
+	static RegexOperator* create_next_op(InputFacade input)
+	{
+		int c = input.get();
+		switch (c) {
+		case '\\':
+		{
+			int antislash_command = input.get();
+			switch (antislash_command) {
+			case 't':
+				return new RegexBasicChar('\t');
+			case 'n':
+				return new RegexBasicChar('\n');
+			case '\\':
+				return new RegexBasicChar('\\');
+			case '.':
+				return new RegexBasicChar('.');
+			case EOF:
+				throw RegexError("EOF Reached", input);
+			default:
+				throw RegexError(string("Unknown '\\") + (char)antislash_command + "' character (code: " + to_string(antislash_command) + ")", input);
+			}
+			break;
+		}
+		case '.':
+			return new RegexAnyChar();
+		case '*':
+			return new RegexKleenStar();
+		case EOF:
+			throw RegexError("EOF Reached", input);
+		default:
+			return new RegexBasicChar(c);
+		}
+	}
+
 	static Regex from_cstr(const char* str)
 	{
-		Regex current_reg;
-		stringstream pattern(str);
-		InputFacade pattern_f(&pattern);
+		stringstream ss(str);
+		InputFacade input(&ss);
 
-		char c;
-		while (pattern_f.peek() != EOF) {
-			c = pattern_f.get();
+		RegexOperator* first = create_next_op(input);
+		RegexOperator* current = first;
 
-			if (c == '\\') {
-				int next = pattern_f.get();
-
-				switch (next) {
-				case 't':
-					current_reg.push_back(new RegexBasicChar('\t'));
-					break;
-
-				case 'n':
-					current_reg.push_back(new RegexBasicChar('\n'));
-					break;
-
-				case '\\':
-					current_reg.push_back(new RegexBasicChar('\\'));
-					break;
-
-				case '.':
-					current_reg.push_back(new RegexBasicChar('.'));
-					break;
-
-				default:
-					throw RegexError(string("Unknown '\\") + (char)next + "' character (code: " + to_string(next) + ")", pattern_f);
-				}
-			}
-			else if (c == '.') {
-				current_reg.push_back(new RegexAnyChar());
-			}
-			else if (c == '*') {
-				current_reg.push_back(new RegexKleenStar());
-			}
-			else {
-				current_reg.push_back(new RegexBasicChar(c));
-			}
+		while (!input.eof()) {
+			current = current->append_regex(create_next_op(input));
 		}
 
-		// cout << "Encoded: " << regex << endl;
-		// cout << "Pattern: ";
-		// for (RegexOperator* v : *this) {
-		// 	cout << v->toString() << ", ";
-		// }
-		// cout << endl;
+		cout << "Raw: " << str << endl;
+		cout << "Pattern: ";
+		cout << first->toString();
+		cout << endl;
 
-		return current_reg;
+		return Regex(first, current);
 	}
 };
 
@@ -457,7 +522,7 @@ int main(int argc, char const* argv[])
 		matches = regex.execute(input);
 	}
 	catch (RegexError& e) {
-		std::cerr << e.what() << endl;
+		std::cerr << "Error: " << e.what() << endl;
 		return -1;
 	}
 
