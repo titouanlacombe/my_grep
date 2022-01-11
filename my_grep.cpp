@@ -111,7 +111,6 @@ public:
 
 class RegexOperator
 {
-protected:
 public:
 	virtual bool execute(istream& input, ostream& output, RegexOperator* next) = 0;
 	virtual string toString() = 0;
@@ -218,17 +217,19 @@ public:
 
 	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
-		stringstream _output;
-		bool match_success;
 		streampos pos = input.tellg(); // Save pos
 
 		// Test all options
 		for (RegexOperator* option : options) {
-			// Reset _output & input
-			_output.clear();
+			stringstream _output;
+
 			input.seekg(pos); // Restore pos
 
-			match_success = option->execute(input, _output, next);
+			bool match_success = option->execute(input, _output, next);
+
+			if (next != nullptr) {
+				match_success &= next->execute(input, _output, nullptr);
+			}
 
 			// If one option successfull take it's matched extracted & return
 			if (match_success) {
@@ -237,8 +238,8 @@ public:
 			}
 		}
 
-		// If all options failed
 		input.seekg(pos); // Restore pos
+
 		return false;
 	}
 
@@ -277,7 +278,7 @@ public:
 		while (operator_success && it != end()) {
 			// cout << "Next char: '" << i_to_string(input.peek()) << "'" << endl;
 			// cout << "Current op: " << ((*it) == nullptr ? "null" : (*it)->toString()) << endl;
-			operator_success = (*it)->execute(input, extracted_tmp, *(++it));
+			operator_success = (*it)->execute(input, extracted_tmp, (++it) == end() ? nullptr : *it);
 		}
 
 		if (operator_success) {
@@ -412,7 +413,7 @@ public:
 					or_op->options.push_back(op);
 				}
 			}
-			while (op != nullptr && input.get() == '|');
+			while (op != nullptr && input.peek() == '|' && input.get());
 
 			if (or_op->options.size() == 1) {
 				throw RegexError("no option found after | operator", -1, cols);
