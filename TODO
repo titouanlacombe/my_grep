@@ -1,3 +1,4 @@
-add function to check next op and skip to pos if success
-kleen star
 add capture groups?
+
+to optimize: remove lines/cols/strings from execute put them at match printing
+-> create match only after the first success

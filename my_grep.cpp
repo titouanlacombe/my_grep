@@ -170,31 +170,33 @@ class RegexKleenStar : public RegexOperator
 public:
 	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
-		// IF NO NEXT REGEX: MATCH ALL INPUT AND RETURN TRUE
-		// RegexOperator* _next;
-		// streampos pos;
-		// stringstream _output;
+		// if no next match until end of file & return true
+		if (next == nullptr) {
+			// Match end of file
+			while (input.peek() != EOF) {
+				output << (char)input.get();
+			}
+			return true;
+		}
 
-		// // While next is not valid add char to match
-		// do {
-		// 	pos = input.tellg(); // Save pos
-		// 	_output.clear();
-		// 	_next = next->execute(input, _output);
-		// 	input.seekg(pos); // Restore pos
+		streampos pos = input.tellg(); // Save pos
+		bool match_success;
+		do {
+			stringstream _output;
+			match_success = next->execute(input, _output, nullptr);
 
-		// 	if (_next == nullptr) {
-		// 		// Add one char to match
-		// 		output << input.get();
-		// 	}
-		// }
-		// while (!input.eof() && _next == nullptr);
+			if (!match_success) {
+				input.seekg(pos); // Indent & restore pos
+				output << (char)input.get();
+				pos = input.tellg();
+			}
+			else {
+				input.seekg(pos); // Indent & restore pos
+			}
+		}
+		while (!match_success && input.peek() != EOF);
 
-		// // If next successfull add the matched str in output
-		// if (_next != nullptr) {
-		// 	output << _output.str();
-		// }
-
-		return false;
+		return match_success;
 	}
 
 	virtual string toString()
@@ -284,9 +286,10 @@ public:
 		if (operator_success) {
 			// cout << "Match operator_success" << endl;
 
-			// Save the pos before the potential getline
+			// Save the pos before the getline
 			match_end_pos = input.tellg();
 
+			getline(input, context_end);
 			match.complete(extracted_tmp, context_end);
 		}
 
