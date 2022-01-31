@@ -1,5 +1,5 @@
-add capture groups?
+switch/branch to reccursive parser
+delete old implementation => switched to compiled automate
+create automate wrapper to get line/col/pos etc.
 
-optimizations:
- - remove lines/cols/strings from execute put them at match printing
- - create match only after the first success
+add capture groups?
