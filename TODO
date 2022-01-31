@@ -1,4 +1,5 @@
 add capture groups?
 
-to optimize: remove lines/cols/strings from execute put them at match printing
--> create match only after the first success
+optimizations:
+ - remove lines/cols/strings from execute put them at match printing
+ - create match only after the first success
