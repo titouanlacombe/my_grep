@@ -2,4 +2,6 @@ switch/branch to reccursive parser
 delete old implementation => switched to compiled automate
 create automate wrapper to get line/col/pos etc.
 
+new output mode => allow for 2 matches on same line (don't find easy solution has to be one)
+
 add capture groups?
