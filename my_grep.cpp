@@ -10,7 +10,7 @@ using namespace std;
 using namespace std::chrono;
 
 // Help to print special characters
-string i_to_string(int result)
+string int_to_string(int result)
 {
 	switch (result) {
 	case '\n':
@@ -26,6 +26,7 @@ string i_to_string(int result)
 	}
 }
 
+// Basic exception type
 class RegexError : std::exception
 {
 public:
@@ -46,26 +47,30 @@ public:
 	}
 };
 
+// Store data about a match in the text
 class Match
 {
-	int start_line_nb;
-	string context_start;
-	string extracted;
-	string context_end;
+	int start_line_nb; // Line number of the start position of the match
+	string context_start; // Text before the match and on the same line
+	string context_end; // Text after the match and on the same line
+	string extracted; // Extracted data by the regex
 
 public:
-	Match(int line_nb, string _context_start)
+	Match(int line_nb, string &_context_start)
 	{
-		context_start = _context_start;
 		start_line_nb = line_nb;
+		context_start = _context_start;
 	}
 
-	void complete(stringstream& _extracted, string _context_end)
+	// Executed when a match succeed
+	// complete the data of the match
+	void complete(stringstream& _extracted, string &_context_end)
 	{
 		extracted = _extracted.str();
 		context_end = _context_end;
 	}
 
+	// Prints pretty line number with padding & a separator
 	void print_line_nb(ostream& output, int nb)
 	{
 		string number = to_string(nb);
@@ -79,6 +84,7 @@ public:
 		output << "| ";
 	}
 
+	// Diplay the match with line number & it's context
 	void print(ostream& output)
 	{
 		stringstream stream(extracted);
@@ -109,15 +115,24 @@ public:
 	}
 };
 
+// Virtual class
 class RegexOperator
 {
 public:
+	// Execute the regex operator on the input
+	// The matched data (if any) will be written to output
+	// The next operator will be used by lazy operators to know when to stop
+	// Return if the operation was a success
 	virtual bool execute(istream& input, ostream& output, RegexOperator* next) = 0;
+
+	// Convert the operator to a readable string for debbuging purposes
 	virtual string toString() = 0;
 };
 
+// Operator who will only match a specific character
 class RegexBasicChar : public RegexOperator
 {
+	// The char to match
 	char character;
 
 public:
@@ -130,8 +145,11 @@ public:
 	{
 		int i = input.get();
 
+		// If the char is found
 		if (i == character) {
+			// add it to matched data
 			output << (char)i;
+			// return success
 			return true;
 		}
 
@@ -140,10 +158,11 @@ public:
 
 	virtual string toString()
 	{
-		return "Basic(" + i_to_string(character) + ")";
+		return "Basic(" + int_to_string(character) + ")";
 	}
 };
 
+// Operator who will only match any character
 class RegexAnyChar : public RegexOperator
 {
 public:
@@ -151,6 +170,7 @@ public:
 	{
 		int c = input.get();
 
+		// can only fail if EOF is reached
 		if (c == EOF) {
 			return false;
 		}
@@ -165,20 +185,23 @@ public:
 	}
 };
 
+// Operator who will only match any number of character
 class RegexKleenStar : public RegexOperator
 {
 public:
 	virtual bool execute(istream& input, ostream& output, RegexOperator* next)
 	{
-		// if no next match until end of file & return true
+		// if no next operator
 		if (next == nullptr) {
-			// Match end of file
+			// match until end of file & return true
 			while (input.peek() != EOF) {
 				output << (char)input.get();
 			}
 			return true;
 		}
 
+		// if next operator exist
+		// match until it succeed
 		streampos pos = input.tellg(); // Save pos
 		bool match_success;
 		do {
@@ -205,6 +228,7 @@ public:
 	}
 };
 
+// Operator who will match one of the Regex in it's options
 class RegexOr : public RegexOperator
 {
 public:
@@ -221,25 +245,31 @@ public:
 	{
 		streampos pos = input.tellg(); // Save pos
 
-		// Test all options
+		// Foreach options
 		for (RegexOperator* option : options) {
+			// Create a temporary stream to store matched data
 			stringstream _output;
 
-			input.seekg(pos); // Restore pos
+			input.seekg(pos); // Restore pos of input
 
+			// Test option
 			bool match_success = option->execute(input, _output, next);
 
+			// If next exist
 			if (next != nullptr) {
+				// Test if the next operator is a success
 				match_success &= next->execute(input, _output, nullptr);
 			}
 
-			// If one option successfull take it's matched extracted & return
+			// If option is succesfull take it's matched extracted & return
 			if (match_success) {
+				// Ajoute a l'output la data matched
 				output << _output.str();
 				return true;
 			}
 		}
 
+		// If no option where succesfull
 		input.seekg(pos); // Restore pos
 
 		return false;
@@ -257,6 +287,7 @@ public:
 	}
 };
 
+// Regex is a list of operators
 class Regex : public list<RegexOperator*>
 {
 public:
@@ -267,6 +298,7 @@ public:
 		}
 	}
 
+	// try a new match on input 
 	bool try_match(istream& input, Match& match, streampos& match_end_pos)
 	{
 		bool operator_success = true;
@@ -297,6 +329,7 @@ public:
 		return operator_success;
 	}
 
+	// skip to position but still update line & col on the way
 	void skip_to_pos(istream& input, streampos& new_pos, string& current_line, int& line, int& col)
 	{
 		while (input.tellg() < new_pos) {
@@ -318,6 +351,9 @@ public:
 		}
 	}
 
+	// main function of a regex
+	// search itself in input
+	// returns all matches found
 	list<Match> search_in(istream& input)
 	{
 		list<Match> matches;
@@ -365,6 +401,8 @@ public:
 class RegexFactory
 {
 public:
+	// regex parser
+	// create one operator from input & add it to regex
 	static RegexOperator* create_next_op(istream& input, Regex& regex, int& cols)
 	{
 		// TODO: implement OR
@@ -431,6 +469,7 @@ public:
 		}
 	}
 
+	// regex factory
 	static Regex from_cstr(const char* str)
 	{
 		stringstream input(str);
@@ -474,7 +513,7 @@ int main(int argc, char const* argv[])
 		return -2;
 	}
 
-	// Compile & search the regex
+	// Compile provided regex & search it in the text
 	list<Match> matches;
 	auto t0 = high_resolution_clock::now();
 	try {
