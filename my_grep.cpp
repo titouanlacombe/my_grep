@@ -109,12 +109,33 @@ public:
 	}
 };
 
-// Node of a regex tree
-class RegexNode
+// Abstract Node & Leaf of a regex tree
+class RegexNodeInterface
+{
+public:
+	virtual bool is_leaf() = 0;
+	virtual string toString() = 0;
+	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+};
+
+// Node of a regex tree wich is not a leaf
+class RegexBranchNode : public RegexLeafNode
 {
 public:
 	// Operators are in order of appearance
-	list<RegexNode> childrens;
+	list<RegexNodeInterface*> childrens;
+
+	~RegexBranchNode()
+	{
+		for (RegexNodeInterface *op : childrens) {
+			delete op;
+		}
+	}
+
+	virtual bool is_leaf()
+	{
+		return false;
+	}
 
 	bool empty()
 	{
@@ -124,22 +145,35 @@ public:
 	virtual string toString()
 	{
 		string str = "TreeNode{";
-		for (RegexNode &op : childrens) {
-			str += op.toString() + ", ";
+		for (RegexNodeInterface *op : childrens) {
+			str += op->toString() + ", ";
 		}
 		return str + "}, ";
 	}
 	
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (RegexNode& op : childrens) {
-			op.linearize(ids_cache);
+		for (RegexNodeInterface *op : childrens) {
+			op->linearize(ids_cache);
 		}
 	}
 };
 
-// Operator who will only match a specific character
-class CharLeaf : public RegexNode
+// Node of a regex tree wich is a leaf
+class RegexLeafNode : public RegexNodeInterface
+{
+public:
+	virtual string toString() = 0;
+	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+
+	virtual bool is_leaf()
+	{
+		return true;
+	}
+};
+
+// Node wich will match a specific character
+class CharLeaf : public RegexLeafNode
 {
 	// The char to match
 	char character;
@@ -166,8 +200,8 @@ public:
 	}
 };
 
-// Operator who will only match any character
-class AnyLeaf : public RegexNode
+// Node wich only match any character
+class AnyLeaf : public RegexLeafNode
 {
 public:
 	virtual string toString()
@@ -180,8 +214,8 @@ public:
 	}
 };
 
-// Operator who will only match any number of character
-class KleenStarLeaf : public RegexNode
+// Node wich match any number of character
+class KleenStarLeaf : public RegexLeafNode
 {
 public:
 	virtual string toString()
@@ -194,19 +228,16 @@ public:
 	}
 };
 
-// Operator who will match one of the regex in it's options
-class OrNode : public RegexNode
+// Node wich match one of the regex in it's childrens
+class OrNode : public RegexBranchNode
 {
 public:
-	// Operators are in order of priority
-	list<RegexNode> options;
-
 	virtual string toString()
 	{
 		string str("ORNode[");
 
-		for (RegexNode option : options) {
-			str += option.toString() + ", ";
+		for (RegexNodeInterface *option : childrens) {
+			str += option->toString() + ", ";
 		}
 
 		return str + "]";
@@ -214,8 +245,8 @@ public:
 	
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (RegexNode option : options) {
-			option.linearize(ids_cache);
+		for (RegexNodeInterface *option : childrens) {
+			option->linearize(ids_cache);
 		}
 	}
 };
@@ -223,43 +254,95 @@ public:
 class RegexFactory
 {
 public:
-	static void parse(string &input, RegexNode &output)
+	static RegexNodeInterface *create_node(istream &regex)
 	{
+		RegexNodeInterface *new_node = nullptr;
 
+		int c = regex.get();
+
+		switch (c)
+		{
+		case EOF:
+			break;
+		
+		case '\\':
+			break;
+		
+		default:
+			break;
+		}
+
+		if (regex.peek() == '|') {
+			regex.get();
+			OrNode *tmp = new OrNode();
+
+			if (new_node == nullptr) {
+				throw RegexError("No element found before '|' option char", 0, 0);
+			}
+
+			tmp->childrens.push_back(new_node);
+
+			RegexNodeInterface *option = create_node(regex);
+			
+			tmp->childrens.push_back(option);
+			new_node = tmp;
+		}
+
+		return new_node;
 	}
 
-	static void linearize(RegexNode &regex)
+	static void parse(istream &input, RegexBranchNode *parent)
+	{
+		int c;
+		while ((c = input.peek()) != EOF)
+		{
+			RegexNodeInterface *node = create_node(input);
+
+			if (node == nullptr) {
+				return;
+			}
+			
+			parent->childrens.push_back(node);
+
+			// If created node is not a leaf
+			if (!node->is_leaf()) {
+				parse(input, (RegexBranchNode*)node);
+			}
+		}
+	}
+
+	static void linearize(RegexLeafNode &regex)
 	{
 		int ids_cache[CHAR_MAX] = {0};
 
 		regex.linearize(ids_cache);
 	}
 
-	static void glushkov(RegexNode &regex)
+	static void glushkov(RegexLeafNode &regex)
 	{
-		RegexFactory::linearize(regex);
+		linearize(regex);
 	}
 
-	// RegexNode factory
-	static RegexNode from_cstr(const char* str)
+	// Regex factory
+	static RegexBranchNode from_cstr(const char* str)
 	{
-		string input(str);
-		RegexNode regex;
+		stringstream input(str);
+		RegexBranchNode root;
 
 		// Parse the string regex into a node tree
-		RegexFactory::parse(input, regex);
+		parse(input, &root);
 
-		if (regex.empty()) {
+		if (root.empty()) {
 			throw RegexError("Empty regex", 0, 0);
 		}
 		
 		// Convert the node tree into a compiled automaton
-		RegexFactory::glushkov(regex);
+		glushkov(root);
 
 		// cout << "Raw: '" << str << "'" << endl;
 		// cout << "Compiled: " << regex.toString() << endl;
 
-		return regex;
+		return root;
 	}
 };
 
@@ -283,7 +366,7 @@ int main(int argc, char const* argv[])
 	list<Match> matches;
 	auto t0 = high_resolution_clock::now();
 	try {
-		RegexNode regex = RegexFactory::from_cstr(argv[2]);
+		RegexBranchNode regex = RegexFactory::from_cstr(argv[2]);
 		// matches = regex.search_in(input);
 	}
 	catch (RegexError& e) {
