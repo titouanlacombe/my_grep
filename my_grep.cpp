@@ -4,7 +4,10 @@
 #include <cstring>
 #include <string>
 #include <list>
+#include <vector>
 #include <chrono>
+
+#define CHAR_MAX 256
 
 using namespace std;
 using namespace std::chrono;
@@ -112,6 +115,9 @@ class RegexOperator
 public:
 	// Convert the operator to a readable string for debbuging purposes
 	virtual string toString() = 0;
+
+	// Add a id to each letter to make it unique
+	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
 };
 
 // Operator who will only match a specific character
@@ -119,6 +125,8 @@ class RegexBasicChar : public RegexOperator
 {
 	// The char to match
 	char character;
+	// Used by the glushkov algo
+	int glushkov_id;
 
 public:
 	RegexBasicChar(char c)
@@ -128,7 +136,14 @@ public:
 
 	virtual string toString()
 	{
-		return "Basic(" + int_to_str(character) + ")";
+		string letter;
+		int_to_str(character, letter);
+		return "Basic(" + letter + ")";
+	}
+	
+	void linearize(int ids_cache[CHAR_MAX])
+	{
+		glushkov_id = ids_cache[character]++;
 	}
 };
 
@@ -140,6 +155,10 @@ public:
 	{
 		return "Any()";
 	}
+
+	void linearize(int ids_cache[CHAR_MAX])
+	{
+	}
 };
 
 // Operator who will only match any number of character
@@ -149,6 +168,10 @@ public:
 	virtual string toString()
 	{
 		return "Star()";
+	}
+	
+	void linearize(int ids_cache[CHAR_MAX])
+	{
 	}
 };
 
@@ -175,6 +198,13 @@ public:
 
 		return str + ")";
 	}
+	
+	void linearize(int ids_cache[CHAR_MAX])
+	{
+		for (RegexOperator* option : options) {
+			option->linearize(ids_cache);
+		}
+	}
 };
 
 // Regex is a list of operators
@@ -188,35 +218,6 @@ public:
 		}
 	}
 
-	// skip to position but still update line & col on the way
-	void skip_to_pos(istream& input, streampos& new_pos, string& current_line, int& line, int& col)
-	{
-		while (input.tellg() < new_pos) {
-			// Increment pos
-			int r = input.get();
-			if (r == EOF) {
-				return;
-			}
-
-			if (r == '\n') {
-				current_line.clear();
-				line++;
-				col = 1;
-			}
-			else {
-				current_line.push_back((char)r);
-				col++;
-			}
-		}
-	}
-
-	// main function of a regex
-	// search itself in input
-	// returns all matches found
-	list<Match> search_in(istream& input)
-	{
-	}
-
 	string toString()
 	{
 		string str;
@@ -225,77 +226,33 @@ public:
 		}
 		return str;
 	}
+	
+	void linearize(int ids_cache[CHAR_MAX])
+	{
+		for (RegexOperator* op : *this) {
+			op->linearize(ids_cache);
+		}
+	}
 };
 
 class RegexFactory
 {
 public:
-	// regex parser
-	// create one operator from regex & add it to regex
-	static RegexOperator* create_next_op(string& regex, Regex& last, int& cols)
+	static void parse(string &input, Regex &output)
 	{
-		// TODO: implement OR
-		int c = regex.pop_front();
-		cols++;
-		switch (c) {
-		case '\\':
-		{
-			int antislash_command = regex.pop_front();
-			cols++;
-			switch (antislash_command) {
-			case 't':
-				return new RegexBasicChar('\t');
-			case 'n':
-				return new RegexBasicChar('\n');
-			case '\\':
-				return new RegexBasicChar('\\');
-			case '|':
-				return new RegexBasicChar('|');
-			case '.':
-				return new RegexBasicChar('.');
-			case EOF:
-				throw RegexError("EOF Reached after '\\' char", -1, cols);
-			default:
-				throw RegexError(string("Unknown '\\") + (char)antislash_command + "' character (code: " + to_string(antislash_command) + ")", -1, cols);
-			}
-			break;
-		}
-		case '.':
-			return new RegexAnyChar();
-		case '*':
-			return new RegexKleenStar();
-		case '|':
-		{
-			if (last.empty()) {
-				throw RegexError("no option found before | operator", -1, cols);
-			}
 
-			// Remove last operator & replace with OR
-			auto or_op = new RegexOr();
-			or_op->options.push_back(regex.back());
-			regex.pop_back();
+	}
 
-			RegexOperator* op;
-			do {
-				op = create_next_op(regex, last, cols);
+	static void linearize(Regex &regex)
+	{
+		int ids_cache[CHAR_MAX] = {0};
 
-				if (op != nullptr) {
-					or_op->options.push_back(op);
-				}
-			}
-			while (op != nullptr && regex.peek() == '|' && regex.pop_front());
+		regex.linearize(ids_cache);
+	}
 
-			if (or_op->options.size() == 1) {
-				throw RegexError("no option found after | operator", -1, cols);
-			}
-
-			return or_op;
-		}
-		case EOF:
-			return nullptr;
-		default:
-			return new RegexBasicChar(c);
-		}
+	static void glushkov(Regex &regex)
+	{
+		RegexFactory::linearize(regex);
 	}
 
 	// Regex factory
@@ -304,23 +261,17 @@ public:
 		string input(str);
 		Regex regex;
 
-		int cols = 0;
-		RegexOperator* op = nullptr;
-		do {
-			op = create_next_op(input, regex, cols);
-
-			if (op != nullptr) {
-				regex.push_back(op);
-			}
-		}
-		while (op != nullptr);
+		// Parse the string regex into a node tree
+		RegexFactory::parse(input, regex);
+		// Convert the node tree into a compiled automaton
+		RegexFactory::glushkov(regex);
 
 		if (regex.empty()) {
-			throw RegexError("Empty regex", -1, cols);
+			throw RegexError("Empty regex", 0, 0);
 		}
 
-		cout << "Raw: '" << str << "'" << endl;
-		cout << "Pattern: " << regex.toString() << endl;
+		// cout << "Raw: '" << str << "'" << endl;
+		// cout << "Compiled: " << regex.toString() << endl;
 
 		return regex;
 	}
@@ -347,7 +298,7 @@ int main(int argc, char const* argv[])
 	auto t0 = high_resolution_clock::now();
 	try {
 		Regex regex = RegexFactory::from_cstr(argv[2]);
-		matches = regex.search_in(input);
+		// matches = regex.search_in(input);
 	}
 	catch (RegexError& e) {
 		std::cerr << "Error: " << e.what() << endl;
