@@ -109,27 +109,45 @@ public:
 	}
 };
 
-// Virtual class
-class RegexOperator
+// Node of a regex tree
+class RegexNode
 {
 public:
-	// Convert the operator to a readable string for debbuging purposes
-	virtual string toString() = 0;
+	// Operators are in order of appearance
+	list<RegexNode> childrens;
 
-	// Add a id to each letter to make it unique
-	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+	bool empty()
+	{
+		return childrens.empty();
+	}
+
+	virtual string toString()
+	{
+		string str = "TreeNode{";
+		for (RegexNode &op : childrens) {
+			str += op.toString() + ", ";
+		}
+		return str + "}, ";
+	}
+	
+	virtual void linearize(int ids_cache[CHAR_MAX])
+	{
+		for (RegexNode& op : childrens) {
+			op.linearize(ids_cache);
+		}
+	}
 };
 
 // Operator who will only match a specific character
-class RegexBasicChar : public RegexOperator
+class CharLeaf : public RegexNode
 {
 	// The char to match
 	char character;
-	// Used by the glushkov algo
+	// ID Used by the glushkov algo
 	int glushkov_id;
 
 public:
-	RegexBasicChar(char c)
+	CharLeaf(char c)
 	{
 		character = c;
 	}
@@ -141,96 +159,63 @@ public:
 		return "Basic(" + letter + ")";
 	}
 	
-	void linearize(int ids_cache[CHAR_MAX])
+	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 		glushkov_id = ids_cache[character]++;
+		cout << "(letter: " << character << ", id: " << glushkov_id << "), ";
 	}
 };
 
 // Operator who will only match any character
-class RegexAnyChar : public RegexOperator
+class AnyLeaf : public RegexNode
 {
 public:
 	virtual string toString()
 	{
-		return "Any()";
+		return "Any";
 	}
 
-	void linearize(int ids_cache[CHAR_MAX])
+	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 	}
 };
 
 // Operator who will only match any number of character
-class RegexKleenStar : public RegexOperator
+class KleenStarLeaf : public RegexNode
 {
 public:
 	virtual string toString()
 	{
-		return "Star()";
+		return "KleenStar";
 	}
 	
-	void linearize(int ids_cache[CHAR_MAX])
+	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 	}
 };
 
-// Operator who will match one of the Regex in it's options
-class RegexOr : public RegexOperator
+// Operator who will match one of the regex in it's options
+class OrNode : public RegexNode
 {
 public:
-	list<RegexOperator*> options;
-
-	~RegexOr()
-	{
-		for (RegexOperator* option : options) {
-			delete option;
-		}
-	}
+	// Operators are in order of priority
+	list<RegexNode> options;
 
 	virtual string toString()
 	{
-		string str("OR(");
+		string str("ORNode[");
 
-		for (RegexOperator* option : options) {
-			str += option->toString() + " | ";
+		for (RegexNode option : options) {
+			str += option.toString() + ", ";
 		}
 
-		return str + ")";
+		return str + "]";
 	}
 	
-	void linearize(int ids_cache[CHAR_MAX])
+	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (RegexOperator* option : options) {
-			option->linearize(ids_cache);
-		}
-	}
-};
-
-// Regex is a list of operators
-class Regex : public list<RegexOperator*>
-{
-public:
-	~Regex()
-	{
-		for (RegexOperator* op : *this) {
-			delete op;
-		}
-	}
-
-	string toString()
-	{
-		string str;
-		for (RegexOperator* op : *this) {
-			str += op->toString() + ", ";
-		}
-		return str;
-	}
-	
-	void linearize(int ids_cache[CHAR_MAX])
-	{
-		for (RegexOperator* op : *this) {
-			op->linearize(ids_cache);
+		for (RegexNode option : options) {
+			option.linearize(ids_cache);
 		}
 	}
 };
@@ -238,37 +223,38 @@ public:
 class RegexFactory
 {
 public:
-	static void parse(string &input, Regex &output)
+	static void parse(string &input, RegexNode &output)
 	{
 
 	}
 
-	static void linearize(Regex &regex)
+	static void linearize(RegexNode &regex)
 	{
 		int ids_cache[CHAR_MAX] = {0};
 
 		regex.linearize(ids_cache);
 	}
 
-	static void glushkov(Regex &regex)
+	static void glushkov(RegexNode &regex)
 	{
 		RegexFactory::linearize(regex);
 	}
 
-	// Regex factory
-	static Regex from_cstr(const char* str)
+	// RegexNode factory
+	static RegexNode from_cstr(const char* str)
 	{
 		string input(str);
-		Regex regex;
+		RegexNode regex;
 
 		// Parse the string regex into a node tree
 		RegexFactory::parse(input, regex);
-		// Convert the node tree into a compiled automaton
-		RegexFactory::glushkov(regex);
 
 		if (regex.empty()) {
 			throw RegexError("Empty regex", 0, 0);
 		}
+		
+		// Convert the node tree into a compiled automaton
+		RegexFactory::glushkov(regex);
 
 		// cout << "Raw: '" << str << "'" << endl;
 		// cout << "Compiled: " << regex.toString() << endl;
@@ -297,7 +283,7 @@ int main(int argc, char const* argv[])
 	list<Match> matches;
 	auto t0 = high_resolution_clock::now();
 	try {
-		Regex regex = RegexFactory::from_cstr(argv[2]);
+		RegexNode regex = RegexFactory::from_cstr(argv[2]);
 		// matches = regex.search_in(input);
 	}
 	catch (RegexError& e) {
