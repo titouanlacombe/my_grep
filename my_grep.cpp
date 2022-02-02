@@ -110,9 +110,11 @@ public:
 };
 
 // Abstract Node & Leaf of a regex tree
-class RegexNodeInterface
+class AbstractRegexNode
 {
 public:
+	AbstractRegexNode* parent = nullptr;
+
 	virtual bool is_leaf() = 0;
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
@@ -123,18 +125,19 @@ class RegexBranchNode : public RegexLeafNode
 {
 public:
 	// Operators are in order of appearance
-	list<RegexNodeInterface*> childrens;
+	list<AbstractRegexNode*> childrens;
 
 	~RegexBranchNode()
 	{
-		for (RegexNodeInterface *op : childrens) {
+		for (AbstractRegexNode *op : childrens) {
 			delete op;
 		}
 	}
-
-	virtual bool is_leaf()
+	
+	void add_child(AbstractRegexNode *_child)
 	{
-		return false;
+		_child->parent = this;
+		childrens.push_back(_child);
 	}
 
 	bool empty()
@@ -145,7 +148,7 @@ public:
 	virtual string toString()
 	{
 		string str = "TreeNode{";
-		for (RegexNodeInterface *op : childrens) {
+		for (AbstractRegexNode *op : childrens) {
 			str += op->toString() + ", ";
 		}
 		return str + "}, ";
@@ -153,14 +156,14 @@ public:
 	
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (RegexNodeInterface *op : childrens) {
+		for (AbstractRegexNode *op : childrens) {
 			op->linearize(ids_cache);
 		}
 	}
 };
 
 // Node of a regex tree wich is a leaf
-class RegexLeafNode : public RegexNodeInterface
+class RegexLeafNode : public AbstractRegexNode
 {
 public:
 	virtual string toString() = 0;
@@ -236,7 +239,7 @@ public:
 	{
 		string str("ORNode[");
 
-		for (RegexNodeInterface *option : childrens) {
+		for (AbstractRegexNode *option : childrens) {
 			str += option->toString() + ", ";
 		}
 
@@ -245,7 +248,7 @@ public:
 	
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (RegexNodeInterface *option : childrens) {
+		for (AbstractRegexNode *option : childrens) {
 			option->linearize(ids_cache);
 		}
 	}
@@ -254,61 +257,137 @@ public:
 class RegexFactory
 {
 public:
-	static RegexNodeInterface *create_node(istream &regex)
+	// create spécial nodes after a '\'	char: \n \t etc...
+	static AbstractRegexNode *create_antislach_command(istream &input)
 	{
-		RegexNodeInterface *new_node = nullptr;
+		int c = input.get();
 
-		int c = regex.get();
+		switch (c) {
+		case 't':
+			return new CharLeaf('\t');
+		case 'n':
+			return new CharLeaf('\n');
+		case '\\':
+			return new CharLeaf('\\');
+		case '|':
+			return new CharLeaf('|');
+		case '(':
+			return new CharLeaf('(');
+		case ')':
+			return new CharLeaf(')');
+		case '*':
+			return new CharLeaf('*');
+		case '.':
+			return new CharLeaf('.');
+		case EOF:
+			throw RegexError("EOF Reached after '\\' char", 0, 0);
+		default:
+			throw RegexError(string("Unknown '\\") + (char)c + "' character (code: " + to_string(c) + ")", 0, 0);
+		}
+	}
+	
+	// Create an OrNode (convert parent to OrNode)
+	static AbstractRegexNode *create_or_node(istream &input, RegexBranchNode *parent)
+	{
+		OrNode *or_node = new OrNode();
+
+		// Copy childrens of parent
+		or_node->childrens = parent->childrens;
+
+		// Clear childrens of parent so that it doesn't free on destruct
+		parent->childrens.clear();
+		delete parent;
+
+		// Replace parent->parent->last_child by OrNode
+		if (parent->parent == nullptr) {
+			throw RegexError("parent->parent is null, dev error, add a root node", 0, 0);
+		}
+		AbstractRegexNode *&child_ref = ((RegexBranchNode*)parent->parent)->childrens.back();
+		if (child_ref == nullptr) {
+			throw RegexError("no previous node was found at create OrNode", 0, 0);
+		}
+		child_ref = or_node;
+
+		// Add next options
+		do {
+			// Add branch wrapper to create new node(s)
+			// Simulate the presence of parenthesis at each '|' char (like: "(blable)|(bnieh)|(vrueb)")
+			RegexBranchNode *option = new RegexBranchNode();
+			
+			create_nodes(input, option);
+
+			if (option->empty()) {
+				throw RegexError("reached EOF after | char", 0, 0);
+			}
+			
+			or_node->add_child(option);
+		}
+		while (input.peek() == '|' && input.get());
+		
+		return or_node;
+	}
+	
+	static AbstractRegexNode *create_star_node(istream &input, RegexBranchNode *parent)
+	{
+		return nullptr;
+	}
+
+	static AbstractRegexNode *create_node(istream &input, RegexBranchNode *parent)
+	{
+		int c = input.get();
 
 		switch (c)
 		{
 		case EOF:
-			break;
-		
+			return nullptr;
 		case '\\':
-			break;
-		
-		default:
-			break;
-		}
-
-		if (regex.peek() == '|') {
-			regex.get();
-			OrNode *tmp = new OrNode();
-
-			if (new_node == nullptr) {
-				throw RegexError("No element found before '|' option char", 0, 0);
-			}
-
-			tmp->childrens.push_back(new_node);
-
-			RegexNodeInterface *option = create_node(regex);
-			
-			tmp->childrens.push_back(option);
-			new_node = tmp;
-		}
-
-		return new_node;
-	}
-
-	static void parse(istream &input, RegexBranchNode *parent)
-	{
-		int c;
-		while ((c = input.peek()) != EOF)
+			return create_antislach_command(input);
+		case '|':
+			return create_or_node(input, parent);
+		case '*':
+			return create_star_node(input, parent);
+		case '(':
 		{
-			RegexNodeInterface *node = create_node(input);
+			RegexBranchNode *new_branch = new RegexBranchNode();
+			create_nodes(input, new_branch);
+			return new_branch;
+		}
+		case ')':
+			return nullptr;
+		default:
+			return new CharLeaf(c);
+		}
+	}
+	
+	static void create_nodes(istream &input, RegexBranchNode *parent)
+	{
+		if (parent == nullptr) {
+			throw RegexError("null parent at create_nodes", 0, 0);
+		}
 
-			if (node == nullptr) {
-				return;
-			}
-			
-			parent->childrens.push_back(node);
+		AbstractRegexNode *node;
+		do {
+			node = create_node(input, parent);
 
-			// If created node is not a leaf
-			if (!node->is_leaf()) {
-				parse(input, (RegexBranchNode*)node);
+			if (node != nullptr) {
+				parent->add_child(node);
 			}
 		}
+		while (node != nullptr);
+	}
+	
+	static RegexBranchNode parse(istream &input)
+	{
+		RegexBranchNode root;
+
+		// Simulate the presence of parentheses at the beggining and end of the input
+		// Used when the regex is an OR node => so the root isn't affected
+		RegexBranchNode *main = new RegexBranchNode();
+		root.add_child(main);
+		
+		create_nodes(input, main);
+
+		return root;
 	}
 
 	static void linearize(RegexLeafNode &regex)
@@ -327,10 +406,9 @@ public:
 	static RegexBranchNode from_cstr(const char* str)
 	{
 		stringstream input(str);
-		RegexBranchNode root;
 
 		// Parse the string regex into a node tree
-		parse(input, &root);
+		RegexBranchNode root = parse(input);
 
 		if (root.empty()) {
 			throw RegexError("Empty regex", 0, 0);
