@@ -386,6 +386,8 @@ public:
 		root.add_child(main);
 		
 		create_nodes(input, main);
+		
+		cout << "Parsed: " << root.toString() << endl;
 
 		return root;
 	}
@@ -418,7 +420,6 @@ public:
 		glushkov(root);
 
 		// cout << "Raw: '" << str << "'" << endl;
-		// cout << "Compiled: " << regex.toString() << endl;
 
 		return root;
 	}
