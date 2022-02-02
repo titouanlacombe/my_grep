@@ -1,3 +1,5 @@
+concatenation (call recursive at the end of get next operator)
+
 switch/branch to reccursive parser
 delete old implementation => switched to compiled automate
 (algo https://fr.wikipedia.org/wiki/Construction_de_Glushkov)
