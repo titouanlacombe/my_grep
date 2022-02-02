@@ -115,13 +115,12 @@ class AbstractRegexNode
 public:
 	AbstractRegexNode* parent = nullptr;
 
-	virtual bool is_leaf() = 0;
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
 };
 
 // Node of a regex tree wich is not a leaf
-class RegexBranchNode : public RegexLeafNode
+class RegexBranchNode : public AbstractRegexNode
 {
 public:
 	// Operators are in order of appearance
@@ -168,11 +167,6 @@ class RegexLeafNode : public AbstractRegexNode
 public:
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
-
-	virtual bool is_leaf()
-	{
-		return true;
-	}
 };
 
 // Node wich will match a specific character
@@ -392,16 +386,16 @@ public:
 		return root;
 	}
 
-	static void linearize(RegexLeafNode &regex)
+	static void linearize(RegexBranchNode &regex_root)
 	{
 		int ids_cache[CHAR_MAX] = {0};
 
-		regex.linearize(ids_cache);
+		regex_root.linearize(ids_cache);
 	}
 
-	static void glushkov(RegexLeafNode &regex)
+	static void glushkov(RegexBranchNode &regex_root)
 	{
-		linearize(regex);
+		linearize(regex_root);
 	}
 
 	// Regex factory
