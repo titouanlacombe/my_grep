@@ -397,11 +397,11 @@ public:
 	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
 	{
 		int c = input.get();
-		cout << "Creating node '" << (char)c << "'" << endl;
+		string deb;
+		int_to_str(c, deb);
+		cout << "Creating node '" << deb << "'" << endl;
 
 		switch (c) {
-		case EOF:
-			return nullptr;
 		case '\\':
 			return create_antislash_command(input);
 		case '|':
@@ -411,6 +411,8 @@ public:
 		case '(':
 			return create_branch(input);
 		case ')':
+			return nullptr;
+		case EOF:
 			return nullptr;
 		default:
 			return new CharLeaf(c);
