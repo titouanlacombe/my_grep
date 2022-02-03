@@ -25,6 +25,12 @@ void int_to_str(int result, string& output)
 	case '\t':
 		output.append("\\t");
 		return;
+	case '\"':
+		output.append("\\\"");
+		return;
+	case '\'':
+		output.append("\\\'");
+		return;
 	case EOF:
 		output.append("EOF");
 		return;
@@ -32,6 +38,22 @@ void int_to_str(int result, string& output)
 		output.push_back(result);
 		return;
 	}
+}
+
+string generate_json_str(string input)
+{
+	string str;
+
+	for (char c : input) {
+		int_to_str(c, str);
+	}
+
+	return "\"" + str + "\"";
+}
+
+string generate_json_key(string key)
+{
+	return generate_json_str(key) + ": ";
 }
 
 // Basic exception type
@@ -146,11 +168,11 @@ public:
 
 	virtual string toString()
 	{
-		string str = "TreeNode{";
+		string str = generate_json_key("Branch") + "[\n";
 		for (AbstractRegexNode* op : childrens) {
-			str += op->toString() + ", ";
+			str += op->toString() + ",\n";
 		}
-		return str + "}, ";
+		return str + "]\n";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -185,9 +207,7 @@ public:
 
 	virtual string toString()
 	{
-		string letter;
-		int_to_str(character, letter);
-		return "Basic(" + letter + ")";
+		return generate_json_str(string("Char '") + character + "'");
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -203,11 +223,11 @@ class AnyLeaf : public RegexLeafNode
 public:
 	virtual string toString()
 	{
-		return "Any";
+		return generate_json_str("Any Char");
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{	}
+	{}
 };
 
 // Node wich match any number of character
@@ -216,11 +236,11 @@ class KleenStarLeaf : public RegexLeafNode
 public:
 	virtual string toString()
 	{
-		return "KleenStar";
+		return generate_json_str("Kleen star");
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{	}
+	{}
 };
 
 // Node wich match one of the regex in it's childrens
@@ -229,13 +249,13 @@ class OrNode : public RegexBranchNode
 public:
 	virtual string toString()
 	{
-		string str("ORNode[");
+		string str = generate_json_key("OR") + "[\n";
 
 		for (AbstractRegexNode* option : childrens) {
-			str += option->toString() + ", ";
+			str += option->toString() + ",\n";
 		}
 
-		return str + "]";
+		return str + "]\n";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -263,6 +283,10 @@ public:
 			return new CharLeaf('\\');
 		case '|':
 			return new CharLeaf('|');
+		case '\"':
+			return new CharLeaf('\"');
+		case '\'':
+			return new CharLeaf('\'');
 		case '(':
 			return new CharLeaf('(');
 		case ')':
@@ -328,7 +352,7 @@ public:
 	{
 		int c = input.get();
 
-		switch (c) 		{
+		switch (c) {
 		case EOF:
 			return nullptr;
 		case '\\':
@@ -352,6 +376,8 @@ public:
 
 	static void create_nodes(istream& input, RegexBranchNode* parent)
 	{
+		cout << "Creating nodes: " << parent->toString() << endl;
+
 		if (parent == nullptr) {
 			throw RegexError("null parent at create_nodes", 0, input.tellg());
 		}
