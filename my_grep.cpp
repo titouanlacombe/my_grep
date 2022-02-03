@@ -168,9 +168,13 @@ public:
 
 	virtual string toString()
 	{
-		string str = generate_json_key("Branch") + "[\n";
-		for (AbstractRegexNode* op : childrens) {
-			str += op->toString() + ",\n";
+		string str = "[\n";
+		for (AbstractRegexNode* child : childrens) {
+			str += child->toString();
+			if (child != childrens.back()) {
+				str += ",";
+			}
+			str += "\n";
 		}
 		return str + "]";
 	}
@@ -207,7 +211,7 @@ public:
 
 	virtual string toString()
 	{
-		return generate_json_str(string("Char '") + character + "'");
+		return generate_json_str(string("Char ") + character);
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -223,7 +227,7 @@ class AnyLeaf : public RegexLeafNode
 public:
 	virtual string toString()
 	{
-		return generate_json_str("Any Char");
+		return generate_json_str("Any char");
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -249,13 +253,17 @@ class OrNode : public RegexBranchNode
 public:
 	virtual string toString()
 	{
-		string str = generate_json_key("OR") + "[\n";
+		string str = "{" + generate_json_key("OR") + "[\n";
 
 		for (AbstractRegexNode* option : childrens) {
-			str += option->toString() + ",\n";
+			str += option->toString();
+			if (option != childrens.back()) {
+				str += ",";
+			}
+			str += "\n";
 		}
 
-		return str + "]";
+		return str + "]}";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -303,29 +311,21 @@ public:
 		}
 	}
 
-	// Create an OrNode (take parent place and make him first opt)
+	// Create an OrNode (create a copy of parent, make that first opt)
 	static AbstractRegexNode* create_or_node(istream& input, RegexBranchNode* parent)
 	{
 		cout << "Creating OR node" << endl;
 
 		OrNode* or_node = new OrNode();
 
-		// Replace grand parent child pointer to OrNode
-		RegexBranchNode* grandparent = (RegexBranchNode*)(parent->parent);
-		if (grandparent == nullptr) {
-			throw RegexError("grandparent is null, dev error, add a root node", 0, input.tellg());
-		}
-		if (grandparent->childrens.size() == 0) {
-			throw RegexError("granparent has no child", 0, input.tellg());
-		}
-		AbstractRegexNode*& child_ref = grandparent->childrens.back();
-		cout << "Replace grand parent pointer" << endl;
-		child_ref = or_node;
+		// Creating first option
+		RegexBranchNode* first_option = new RegexBranchNode();
+		first_option->childrens = parent->childrens;
+		parent->childrens.clear();
 
-		// Add parent as first opt
-		// replace parent->parent to or_node
-		cout << "Add parent" << endl;
-		or_node->add_child(parent);
+		// Add first opt
+		cout << "Add first opt" << endl;
+		or_node->add_child(first_option);
 
 		// Add next options
 		do {
@@ -416,7 +416,7 @@ public:
 
 		create_nodes(input, main);
 
-		cout << "Parsed: " << root.toString() << endl;
+		cout << "Parsed:\n" << root.toString() << endl;
 
 		return root;
 	}
