@@ -403,6 +403,7 @@ public:
 		while (true) {
 			AbstractRegexNode* leaf = parse_leaf(input);
 			if (leaf != nullptr) {
+				// TODO: Check star op
 				branch->add_child(leaf);
 			}
 			else {
