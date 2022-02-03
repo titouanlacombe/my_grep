@@ -1,19 +1,17 @@
 [
-    [
-        {
-            "OR": [
-                [
-                    "Char i",
-                    "Char n",
-                    "Char d",
-                    "Char e"
-                ],
-                [
-                    "Char x",
-                    "Char e",
-                    "Char s"
-                ]
-            ]
-        }
-    ]
+[
+{"OR": [
+[
+"Char i",
+"Char n",
+"Char d",
+"Char e"
+],
+[
+"Char x",
+"Char e",
+"Char s"
+]
+]}
+]
 ]

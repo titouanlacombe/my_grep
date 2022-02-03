@@ -324,7 +324,7 @@ public:
 		parent->childrens.clear();
 
 		// Add first opt
-		cout << "Add first opt" << endl;
+		// cout << "Add first opt" << endl;
 		or_node->add_child(first_option);
 
 		// Add next options
@@ -333,7 +333,7 @@ public:
 			// Simulate the presence of parenthesis at each '|' char (like: "(blable)|(bnieh)|(vrueb)")
 			RegexBranchNode* option = new RegexBranchNode();
 
-			cout << "Create new options" << endl;
+			// cout << "Creating new option" << endl;
 			create_nodes(input, option);
 
 			if (option->empty()) {
@@ -382,7 +382,7 @@ public:
 
 	static void create_nodes(istream& input, RegexBranchNode* parent)
 	{
-		cout << "Creating nodes, parent: " << parent->toString() << endl;
+		cout << "\nCreating nodes" << endl;
 
 		if (parent == nullptr) {
 			throw RegexError("null parent at create_nodes", 0, input.tellg());
@@ -393,16 +393,16 @@ public:
 			node = create_node(input, parent);
 
 			if (node != nullptr) {
-				cout << "created node: " << node->toString() << endl;
+				// cout << "created node: " << node->toString() << endl;
 				parent->add_child(node);
 			}
 			else {
-				cout << "created node: null" << endl;
+				// cout << "created node: null" << endl;
 			}
 		}
 		while (node != nullptr);
 
-		cout << "Creating nodes exit, Created: " << parent->toString() << "\n" << endl;
+		cout << "Creating nodes exit\n" << endl;
 	}
 
 	static RegexBranchNode parse(istream& input)
