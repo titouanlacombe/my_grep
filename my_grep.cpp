@@ -409,20 +409,20 @@ public:
 		cout << "Creating node '" << deb << "'" << endl;
 
 		switch (c) {
-		case '\\':
-			return create_antislash_command(input);
+		case '(':
+			return create_branch(input);
+		case ')':
+			return nullptr;
 		case '|':
 			parent->add_child(create_or_operator(input, parent));
 			return nullptr;
 		case '*':
 			parent->add_child(create_star_operator(input, parent));
 			return nullptr;
-		case '(':
-			return create_branch(input);
-		case ')':
-			return nullptr;
 		case EOF:
 			return nullptr;
+		case '\\':
+			return create_antislash_command(input);
 		default:
 			return new CharLeaf(c);
 		}
