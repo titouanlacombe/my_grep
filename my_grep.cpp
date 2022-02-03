@@ -13,7 +13,7 @@ using namespace std;
 using namespace std::chrono;
 
 // Print special characters correctly
-void int_to_str(int result, string &output)
+void int_to_str(int result, string& output)
 {
 	switch (result) {
 	case '\n':
@@ -61,7 +61,7 @@ class Match
 	streampos start, end;
 
 public:
-	Match(streampos &_start, streampos &_end)
+	Match(streampos& _start, streampos& _end)
 	{
 		start = _start;
 		end = _end;
@@ -128,12 +128,12 @@ public:
 
 	~RegexBranchNode()
 	{
-		for (AbstractRegexNode *op : childrens) {
+		for (AbstractRegexNode* op : childrens) {
 			delete op;
 		}
 	}
-	
-	void add_child(AbstractRegexNode *_child)
+
+	void add_child(AbstractRegexNode* _child)
 	{
 		_child->parent = this;
 		childrens.push_back(_child);
@@ -147,15 +147,15 @@ public:
 	virtual string toString()
 	{
 		string str = "TreeNode{";
-		for (AbstractRegexNode *op : childrens) {
+		for (AbstractRegexNode* op : childrens) {
 			str += op->toString() + ", ";
 		}
 		return str + "}, ";
 	}
-	
+
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (AbstractRegexNode *op : childrens) {
+		for (AbstractRegexNode* op : childrens) {
 			op->linearize(ids_cache);
 		}
 	}
@@ -189,7 +189,7 @@ public:
 		int_to_str(character, letter);
 		return "Basic(" + letter + ")";
 	}
-	
+
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 		glushkov_id = ids_cache[character]++;
@@ -207,8 +207,7 @@ public:
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{
-	}
+	{	}
 };
 
 // Node wich match any number of character
@@ -219,10 +218,9 @@ public:
 	{
 		return "KleenStar";
 	}
-	
+
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{
-	}
+	{	}
 };
 
 // Node wich match one of the regex in it's childrens
@@ -233,16 +231,16 @@ public:
 	{
 		string str("ORNode[");
 
-		for (AbstractRegexNode *option : childrens) {
+		for (AbstractRegexNode* option : childrens) {
 			str += option->toString() + ", ";
 		}
 
 		return str + "]";
 	}
-	
+
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (AbstractRegexNode *option : childrens) {
+		for (AbstractRegexNode* option : childrens) {
 			option->linearize(ids_cache);
 		}
 	}
@@ -252,7 +250,7 @@ class RegexFactory
 {
 public:
 	// create spécial nodes after a '\'	char: \n \t etc...
-	static AbstractRegexNode *create_antislach_command(istream &input)
+	static AbstractRegexNode* create_antislach_command(istream& input)
 	{
 		int c = input.get();
 
@@ -274,16 +272,16 @@ public:
 		case '.':
 			return new CharLeaf('.');
 		case EOF:
-			throw RegexError("EOF Reached after '\\' char", 0, 0);
+			throw RegexError("EOF Reached after '\\' char", 0, input.tellg());
 		default:
-			throw RegexError(string("Unknown '\\") + (char)c + "' character (code: " + to_string(c) + ")", 0, 0);
+			throw RegexError(string("Unknown '\\") + (char)c + "' character (code: " + to_string(c) + ")", 0, input.tellg());
 		}
 	}
-	
+
 	// Create an OrNode (convert parent to OrNode)
-	static AbstractRegexNode *create_or_node(istream &input, RegexBranchNode *parent)
+	static AbstractRegexNode* create_or_node(istream& input, RegexBranchNode* parent)
 	{
-		OrNode *or_node = new OrNode();
+		OrNode* or_node = new OrNode();
 
 		// Copy childrens of parent
 		or_node->childrens = parent->childrens;
@@ -294,11 +292,11 @@ public:
 
 		// Replace parent->parent->last_child by OrNode
 		if (parent->parent == nullptr) {
-			throw RegexError("parent->parent is null, dev error, add a root node", 0, 0);
+			throw RegexError("parent->parent is null, dev error, add a root node", 0, input.tellg());
 		}
-		AbstractRegexNode *&child_ref = ((RegexBranchNode*)parent->parent)->childrens.back();
+		AbstractRegexNode*& child_ref = ((RegexBranchNode*)parent->parent)->childrens.back();
 		if (child_ref == nullptr) {
-			throw RegexError("no previous node was found at create OrNode", 0, 0);
+			throw RegexError("no previous node was found at create OrNode", 0, input.tellg());
 		}
 		child_ref = or_node;
 
@@ -306,32 +304,31 @@ public:
 		do {
 			// Add branch wrapper to create new node(s)
 			// Simulate the presence of parenthesis at each '|' char (like: "(blable)|(bnieh)|(vrueb)")
-			RegexBranchNode *option = new RegexBranchNode();
-			
+			RegexBranchNode* option = new RegexBranchNode();
+
 			create_nodes(input, option);
 
 			if (option->empty()) {
-				throw RegexError("reached EOF after | char", 0, 0);
+				throw RegexError("reached EOF after | char", 0, input.tellg());
 			}
-			
+
 			or_node->add_child(option);
 		}
 		while (input.peek() == '|' && input.get());
-		
+
 		return or_node;
 	}
-	
-	static AbstractRegexNode *create_star_node(istream &input, RegexBranchNode *parent)
+
+	static AbstractRegexNode* create_star_node(istream& input, RegexBranchNode* parent)
 	{
 		return nullptr;
 	}
 
-	static AbstractRegexNode *create_node(istream &input, RegexBranchNode *parent)
+	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
 	{
 		int c = input.get();
 
-		switch (c)
-		{
+		switch (c) 		{
 		case EOF:
 			return nullptr;
 		case '\\':
@@ -342,7 +339,7 @@ public:
 			return create_star_node(input, parent);
 		case '(':
 		{
-			RegexBranchNode *new_branch = new RegexBranchNode();
+			RegexBranchNode* new_branch = new RegexBranchNode();
 			create_nodes(input, new_branch);
 			return new_branch;
 		}
@@ -352,14 +349,14 @@ public:
 			return new CharLeaf(c);
 		}
 	}
-	
-	static void create_nodes(istream &input, RegexBranchNode *parent)
+
+	static void create_nodes(istream& input, RegexBranchNode* parent)
 	{
 		if (parent == nullptr) {
-			throw RegexError("null parent at create_nodes", 0, 0);
+			throw RegexError("null parent at create_nodes", 0, input.tellg());
 		}
 
-		AbstractRegexNode *node;
+		AbstractRegexNode* node;
 		do {
 			node = create_node(input, parent);
 
@@ -369,31 +366,31 @@ public:
 		}
 		while (node != nullptr);
 	}
-	
-	static RegexBranchNode parse(istream &input)
+
+	static RegexBranchNode parse(istream& input)
 	{
 		RegexBranchNode root;
 
 		// Simulate the presence of parentheses at the beggining and end of the input
 		// Used when the regex is an OR node => so the root isn't affected
-		RegexBranchNode *main = new RegexBranchNode();
+		RegexBranchNode* main = new RegexBranchNode();
 		root.add_child(main);
-		
+
 		create_nodes(input, main);
-		
+
 		cout << "Parsed: " << root.toString() << endl;
 
 		return root;
 	}
 
-	static void linearize(RegexBranchNode &regex_root)
+	static void linearize(RegexBranchNode& regex_root)
 	{
-		int ids_cache[CHAR_MAX] = {0};
+		int ids_cache[CHAR_MAX] = { 0 };
 
 		regex_root.linearize(ids_cache);
 	}
 
-	static void glushkov(RegexBranchNode &regex_root)
+	static void glushkov(RegexBranchNode& regex_root)
 	{
 		linearize(regex_root);
 	}
@@ -407,9 +404,9 @@ public:
 		RegexBranchNode root = parse(input);
 
 		if (root.empty()) {
-			throw RegexError("Empty regex", 0, 0);
+			throw RegexError("Empty regex", 0, input.tellg());
 		}
-		
+
 		// Convert the node tree into a compiled automaton
 		glushkov(root);
 
