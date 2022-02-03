@@ -172,7 +172,7 @@ public:
 		for (AbstractRegexNode* op : childrens) {
 			str += op->toString() + ",\n";
 		}
-		return str + "]\n";
+		return str + "]";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -255,7 +255,7 @@ public:
 			str += option->toString() + ",\n";
 		}
 
-		return str + "]\n";
+		return str + "]";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -270,9 +270,10 @@ class RegexFactory
 {
 public:
 	// create spécial nodes after a '\'	char: \n \t etc...
-	static AbstractRegexNode* create_antislach_command(istream& input)
+	static AbstractRegexNode* create_antislash_command(istream& input)
 	{
 		int c = input.get();
+		cout << "Creating Antislash node '" << (char)c << "'" << endl;
 
 		switch (c) {
 		case 't':
@@ -305,6 +306,8 @@ public:
 	// Create an OrNode (convert parent to OrNode)
 	static AbstractRegexNode* create_or_node(istream& input, RegexBranchNode* parent)
 	{
+		cout << "Creating OR node" << endl;
+
 		OrNode* or_node = new OrNode();
 
 		// Copy childrens of parent
@@ -345,18 +348,20 @@ public:
 
 	static AbstractRegexNode* create_star_node(istream& input, RegexBranchNode* parent)
 	{
+		cout << "Creating star node" << endl;
 		return nullptr;
 	}
 
 	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
 	{
 		int c = input.get();
+		cout << "Creating node, c: '" << (char)c << "'" << endl;
 
 		switch (c) {
 		case EOF:
 			return nullptr;
 		case '\\':
-			return create_antislach_command(input);
+			return create_antislash_command(input);
 		case '|':
 			return create_or_node(input, parent);
 		case '*':
@@ -376,7 +381,7 @@ public:
 
 	static void create_nodes(istream& input, RegexBranchNode* parent)
 	{
-		cout << "Creating nodes: " << parent->toString() << endl;
+		cout << "\nCreating nodes, parent: " << parent->toString() << endl;
 
 		if (parent == nullptr) {
 			throw RegexError("null parent at create_nodes", 0, input.tellg());
