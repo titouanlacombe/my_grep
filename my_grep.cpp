@@ -294,13 +294,17 @@ public:
 class KleenStarOperator : public RegexLeafNode
 {
 public:
+	RegexBranchNode* child;
+
 	virtual string toString()
 	{
-		return generate_json_str("Kleen star");
+		return generate_json_key("Kleen star") + child->toString();
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{}
+	{
+		child->linearize(ids_cache);
+	}
 };
 
 // Node wich match one of the regex in it's childrens
