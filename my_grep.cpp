@@ -280,7 +280,7 @@ public:
 };
 
 // Node wich match any number of character
-class KleenStarLeaf : public RegexLeafNode
+class KleenStarOperator : public RegexLeafNode
 {
 public:
 	virtual string toString()
@@ -293,7 +293,7 @@ public:
 };
 
 // Node wich match one of the regex in it's childrens
-class OrNode : public RegexBranchNode
+class OrOperator : public RegexBranchNode
 {
 public:
 	virtual string toString()
@@ -356,12 +356,12 @@ public:
 		}
 	}
 
-	// Create an OrNode (create a copy of parent, make that first opt)
-	static AbstractRegexNode* create_or_node(istream& input, RegexBranchNode* parent)
+	// Create an OrOperator (create a copy of parent, make that first opt)
+	static AbstractRegexNode* create_or_operator(istream& input, RegexBranchNode* parent)
 	{
-		cout << "Creating OR node" << endl;
+		cout << "Creating OR operator" << endl;
 
-		OrNode* or_node = new OrNode();
+		OrOperator* or_operator = new OrOperator();
 
 		// moving childs from parent to first option
 		RegexBranchNode* first_option = new RegexBranchNode();
@@ -369,35 +369,35 @@ public:
 		parent->childrens.clear();
 
 		// Add first opt
-		or_node->add_child(first_option);
+		or_operator->add_child(first_option);
 
 		// Add next options
 		do {
-			RegexBranchNode* option = create_nodes(input);
+			RegexBranchNode* option = create_branch(input);
 
 			if (option->empty()) {
-				throw RegexError("empty regex after | char", 0, input.tellg());
+				throw RegexError("empty regex after OR | operator", 0, input.tellg());
 			}
 
-			or_node->add_child(option);
+			or_operator->add_child(option);
 		}
 		while (input.peek() == '|' && input.get());
 
-		cout << "Creating OR nodes exit\n" << endl;
+		cout << "Creating OR operator exit\n" << endl;
 
-		return or_node;
+		return or_operator;
 	}
 
-	static AbstractRegexNode* create_star_node(istream& input, RegexBranchNode* parent)
+	static AbstractRegexNode* create_star_operator(istream& input, RegexBranchNode* parent)
 	{
-		cout << "Creating star node" << endl;
+		cout << "Creating star operator" << endl;
 		return nullptr;
 	}
 
 	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
 	{
 		int c = input.get();
-		cout << "Creating node, c: '" << (char)c << "'" << endl;
+		cout << "Creating node '" << (char)c << "'" << endl;
 
 		switch (c) {
 		case EOF:
@@ -405,11 +405,11 @@ public:
 		case '\\':
 			return create_antislash_command(input);
 		case '|':
-			return create_or_node(input, parent);
+			return create_or_operator(input, parent);
 		case '*':
-			return create_star_node(input, parent);
+			return create_star_operator(input, parent);
 		case '(':
-			return create_nodes(input);
+			return create_branch(input);
 		case ')':
 			return nullptr;
 		default:
@@ -418,7 +418,7 @@ public:
 	}
 
 	// Create a new branch
-	static RegexBranchNode* create_nodes(istream& input)
+	static RegexBranchNode* create_branch(istream& input)
 	{
 		cout << "\nCreating nodes" << endl;
 
@@ -442,7 +442,7 @@ public:
 
 	static AbstractRegexNode* parse(istream& input)
 	{
-		AbstractRegexNode* root = create_nodes(input);
+		AbstractRegexNode* root = create_branch(input);
 
 		ofstream json_log("./data/parsed.json");
 		json_log << root->toString() << endl;
