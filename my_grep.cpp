@@ -341,7 +341,7 @@ public:
 	static RegexLeafNode* create_antislash_command(istream& input)
 	{
 		int c = input.get();
-		cout << "Creating Antislash node '" << (char)c << "'" << endl;
+		// cout << "Creating Antislash node '" << int_to_str(c) << "'" << endl;
 
 		switch (c) {
 		case 't':
@@ -374,7 +374,7 @@ public:
 	static AbstractRegexNode* parse_leaf(istream& input)
 	{
 		int c = input.peek();
-		cout << "parse_leaf: " << int_to_str(c) << endl;
+		// cout << "parse_leaf: " << int_to_str(c) << endl;
 
 		switch (c) {
 		case EOF:
@@ -398,7 +398,7 @@ public:
 	static RegexBranchNode* parse_branch(istream& input)
 	{
 		RegexBranchNode* branch = new RegexBranchNode();
-		cout << "parse_branch" << endl;
+		// cout << "parse_branch" << endl;
 
 		while (true) {
 			AbstractRegexNode* leaf = parse_leaf(input);
@@ -407,7 +407,7 @@ public:
 				branch->add_child(leaf);
 			}
 			else {
-				cout << "parse_branch exit" << endl;
+				// cout << "parse_branch exit" << endl;
 				return branch;
 			}
 		}
@@ -416,7 +416,7 @@ public:
 	static OrOperator* parse_or(istream& input)
 	{
 		OrOperator* _or = new OrOperator();
-		cout << "parse_or" << endl;
+		// cout << "parse_or" << endl;
 
 		while (true) {
 			_or->add_child(
