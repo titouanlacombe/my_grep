@@ -405,9 +405,11 @@ public:
 		case '\\':
 			return create_antislash_command(input);
 		case '|':
-			return create_or_operator(input, parent);
+			parent->add_child(create_or_operator(input, parent));
+			return nullptr;
 		case '*':
-			return create_star_operator(input, parent);
+			parent->add_child(create_star_operator(input, parent));
+			return nullptr;
 		case '(':
 			return create_branch(input);
 		case ')':
