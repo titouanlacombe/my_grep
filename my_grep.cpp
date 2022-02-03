@@ -318,26 +318,20 @@ public:
 
 		OrNode* or_node = new OrNode();
 
-		// Creating first option
+		// moving childs from parent to first option
 		RegexBranchNode* first_option = new RegexBranchNode();
 		first_option->childrens = parent->childrens;
 		parent->childrens.clear();
 
 		// Add first opt
-		// cout << "Add first opt" << endl;
 		or_node->add_child(first_option);
 
 		// Add next options
 		do {
-			// Add branch wrapper to create new node(s)
-			// Simulate the presence of parenthesis at each '|' char (like: "(blable)|(bnieh)|(vrueb)")
-			RegexBranchNode* option = new RegexBranchNode();
-
-			// cout << "Creating new option" << endl;
-			create_nodes(input, option);
+			RegexBranchNode* option = create_nodes(input);
 
 			if (option->empty()) {
-				throw RegexError("reached EOF after | char", 0, input.tellg());
+				throw RegexError("empty regex after | char", 0, input.tellg());
 			}
 
 			or_node->add_child(option);
@@ -368,11 +362,7 @@ public:
 		case '*':
 			return create_star_node(input, parent);
 		case '(':
-		{
-			RegexBranchNode* new_branch = new RegexBranchNode();
-			create_nodes(input, new_branch);
-			return new_branch;
-		}
+			return create_nodes(input);
 		case ')':
 			return nullptr;
 		default:
@@ -380,13 +370,12 @@ public:
 		}
 	}
 
-	static void create_nodes(istream& input, RegexBranchNode* parent)
+	// Create a new branch
+	static RegexBranchNode* create_nodes(istream& input)
 	{
 		cout << "\nCreating nodes" << endl;
 
-		if (parent == nullptr) {
-			throw RegexError("null parent at create_nodes", 0, input.tellg());
-		}
+		RegexBranchNode* parent = new RegexBranchNode();
 
 		AbstractRegexNode* node;
 		do {
@@ -403,18 +392,16 @@ public:
 		while (node != nullptr);
 
 		cout << "Creating nodes exit\n" << endl;
+		return parent;
 	}
 
 	static RegexBranchNode parse(istream& input)
 	{
 		RegexBranchNode root;
 
-		// Simulate the presence of parentheses at the beggining and end of the input
-		// Used when the regex is an OR node => so the root isn't affected
-		RegexBranchNode* main = new RegexBranchNode();
-		root.add_child(main);
-
-		create_nodes(input, main);
+		root.add_child(
+			create_nodes(input)
+		);
 
 		ofstream json_log("./parsed.json");
 		json_log << root.toString() << endl;
