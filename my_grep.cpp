@@ -139,6 +139,8 @@ public:
 
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+	virtual AbstractRegexNode* clean() = 0;
+	virtual bool empty() = 0;
 };
 
 // Node of a regex tree wich is not a leaf
@@ -150,8 +152,8 @@ public:
 
 	~RegexBranchNode()
 	{
-		for (AbstractRegexNode* op : childrens) {
-			delete op;
+		for (AbstractRegexNode* child : childrens) {
+			delete child;
 		}
 	}
 
@@ -181,9 +183,32 @@ public:
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
-		for (AbstractRegexNode* op : childrens) {
-			op->linearize(ids_cache);
+		for (AbstractRegexNode* child : childrens) {
+			child->linearize(ids_cache);
 		}
+	}
+
+	virtual AbstractRegexNode* clean()
+	{
+		for (AbstractRegexNode*& child : childrens) {
+			child = child->clean();
+		}
+
+		// TODO: filter null childs
+
+		if (childrens.size() > 1) {
+			return this;
+		}
+
+		if (childrens.size() == 0) {
+			delete this;
+			return nullptr;
+		}
+
+		AbstractRegexNode* child = childrens.front();
+		childrens.clear();
+		delete this;
+		return child;
 	}
 };
 
@@ -193,6 +218,16 @@ class RegexLeafNode : public AbstractRegexNode
 public:
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+
+	bool empty()
+	{
+		return false;
+	}
+
+	virtual AbstractRegexNode* clean()
+	{
+		return this;
+	}
 };
 
 // Node wich will match a specific character
@@ -338,6 +373,8 @@ public:
 		}
 		while (input.peek() == '|' && input.get());
 
+		cout << "Creating OR nodes exit\n" << endl;
+
 		return or_node;
 	}
 
@@ -378,58 +415,58 @@ public:
 		RegexBranchNode* parent = new RegexBranchNode();
 
 		AbstractRegexNode* node;
-		do {
+		while (true) {
 			node = create_node(input, parent);
 
-			if (node != nullptr) {
-				// cout << "created node: " << node->toString() << endl;
-				parent->add_child(node);
+			if (node == nullptr) {
+				cout << "Creating nodes exit\n" << endl;
+				return parent;
 			}
-			else {
-				// cout << "created node: null" << endl;
-			}
-		}
-		while (node != nullptr);
 
-		cout << "Creating nodes exit\n" << endl;
+			// cout << "created node: " << node->toString() << endl;
+			parent->add_child(node);
+		}
+
 		return parent;
 	}
 
-	static RegexBranchNode parse(istream& input)
+	static AbstractRegexNode* parse(istream& input)
 	{
-		RegexBranchNode root;
+		AbstractRegexNode* root = create_nodes(input);
 
-		root.add_child(
-			create_nodes(input)
-		);
+		ofstream json_log("./data/parsed.json");
+		json_log << root->toString() << endl;
 
-		ofstream json_log("./parsed.json");
-		json_log << root.toString() << endl;
+		// clean: replace all branch with 1 child by there child
+		root = root->clean();
+
+		ofstream cleaned_json_log("./data/cleaned.json");
+		cleaned_json_log << root->toString() << endl;
 
 		return root;
 	}
 
-	static void linearize(RegexBranchNode& regex_root)
+	static void linearize(AbstractRegexNode* regex_root)
 	{
 		int ids_cache[CHAR_MAX] = { 0 };
 
-		regex_root.linearize(ids_cache);
+		regex_root->linearize(ids_cache);
 	}
 
-	static void glushkov(RegexBranchNode& regex_root)
+	static void glushkov(AbstractRegexNode* regex_root)
 	{
 		linearize(regex_root);
 	}
 
 	// Regex factory
-	static RegexBranchNode from_cstr(const char* str)
+	static AbstractRegexNode* from_cstr(const char* str)
 	{
 		stringstream input(str);
 
 		// Parse the string regex into a node tree
-		RegexBranchNode root = parse(input);
+		AbstractRegexNode* root = parse(input);
 
-		if (root.empty()) {
+		if (root->empty()) {
 			throw RegexError("Empty regex", 0, input.tellg());
 		}
 
@@ -462,8 +499,9 @@ int main(int argc, char const* argv[])
 	list<Match> matches;
 	auto t0 = high_resolution_clock::now();
 	try {
-		RegexBranchNode regex = RegexFactory::from_cstr(argv[2]);
+		AbstractRegexNode* regex = RegexFactory::from_cstr(argv[2]);
 		// matches = regex.search_in(input);
+		delete regex;
 	}
 	catch (RegexError& e) {
 		std::cerr << "Error: " << e.what() << endl;
