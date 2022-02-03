@@ -391,7 +391,14 @@ public:
 	static AbstractRegexNode* create_star_operator(istream& input, RegexBranchNode* parent)
 	{
 		cout << "Creating star operator" << endl;
-		return nullptr;
+
+		KleenStarOperator* star_operator = new KleenStarOperator();
+
+		// moving childs from parent to star op
+		// star_operator->childrens = parent->childrens;
+		// parent->childrens.clear();
+
+		return star_operator;
 	}
 
 	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
