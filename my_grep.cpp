@@ -414,29 +414,13 @@ public:
 		cout << "parse_or" << endl;
 
 		while (true) {
-			RegexBranchNode* branch = parse_branch(input);
+			_or->add_child(
+				parse_branch(input)
+			);
 
-			int c = input.peek();
-
-			if (c == '|') {
-				input.get();
-				cout << "add option: " << branch->toString() << endl;
-				_or->add_child(branch);
-			}
-			else if (c == ')') {
-				input.get();
-				cout << "add option: " << branch->toString() << endl;
-				_or->add_child(branch);
+			int c = input.get();
+			if (c != '|') {
 				return _or;
-			}
-			else if (c == EOF) {
-				input.get();
-				cout << "add option: " << branch->toString() << endl;
-				_or->add_child(branch);
-				return _or;
-			}
-			else {
-				throw RegexError("Unknown char: '" + int_to_str(c) + "'", 0, input.tellg());
 			}
 		}
 	}
