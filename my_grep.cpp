@@ -246,13 +246,13 @@ public:
 
 	virtual string toString()
 	{
-		return generate_json_str(string("Char ") + character);
+		return generate_json_key("Char") + generate_json_str(string(1, character));
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 		glushkov_id = ids_cache[character]++;
-		cout << "(letter: " << character << ", id: " << glushkov_id << "), ";
+		// cout << "(letter: " << character << ", id: " << glushkov_id << "), ";
 	}
 };
 
@@ -288,7 +288,7 @@ class OrNode : public RegexBranchNode
 public:
 	virtual string toString()
 	{
-		string str = "{" + generate_json_key("OR") + "[\n";
+		string str = generate_json_key("OR") + "[\n";
 
 		for (AbstractRegexNode* option : childrens) {
 			str += option->toString();
@@ -298,7 +298,7 @@ public:
 			str += "\n";
 		}
 
-		return str + "]}";
+		return str + "]";
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
