@@ -420,16 +420,15 @@ public:
 	// Create a new branch
 	static RegexBranchNode* create_branch(istream& input)
 	{
-		cout << "\nCreating nodes" << endl;
+		cout << "\nCreating branch" << endl;
 
 		RegexBranchNode* parent = new RegexBranchNode();
 
-		AbstractRegexNode* node;
 		while (true) {
-			node = create_node(input, parent);
+			AbstractRegexNode* node = create_node(input, parent);
 
 			if (node == nullptr) {
-				cout << "Creating nodes exit\n" << endl;
+				cout << "Creating branch exit\n" << endl;
 				return parent;
 			}
 
