@@ -327,7 +327,7 @@ class RegexFactory
 {
 public:
 	// create spécial nodes after a '\'	char: \n \t etc...
-	static AbstractRegexNode* create_antislash_command(istream& input)
+	static RegexLeafNode* create_antislash_command(istream& input)
 	{
 		int c = input.get();
 		cout << "Creating Antislash node '" << (char)c << "'" << endl;
@@ -360,115 +360,68 @@ public:
 		}
 	}
 
-	// Create an OrOperator (create a copy of parent, make that first opt)
-	static AbstractRegexNode* create_or_operator(istream& input, RegexBranchNode* parent)
+	static RegexLeafNode* parse_branch(istream& input)
 	{
-		cout << "Creating OR operator" << endl;
-
-		OrOperator* or_operator = new OrOperator();
-
-		// moving childs from parent to first option
-		RegexBranchNode* first_option = new RegexBranchNode();
-		first_option->add_childs(parent->childrens);
-		parent->childrens.clear();
-
-		// Add first opt
-		or_operator->add_child(first_option);
-
-		// Parse the rest of the branch
-		RegexBranchNode* rest = create_branch(input);
-		if (rest->empty()) {
-			throw RegexError("empty regex after OR | operator", 0, input.tellg());
-		}
-
-		// Add the generated childs to OR op
-		for (AbstractRegexNode* child : rest->childrens) {
-			or_operator->add_child(child);
-		}
-		rest->childrens.clear();
-		delete rest;
-
-		cout << "Creating OR operator exit\n" << endl;
-
-		return or_operator;
-	}
-
-	static AbstractRegexNode* create_star_operator(istream& input, RegexBranchNode* parent)
-	{
-		cout << "Creating star operator" << endl;
-
-		KleenStarOperator* star_operator = new KleenStarOperator();
-
-		// moving childs from parent to star op
-		// star_operator->add_childs(parent->childrens);
-		// parent->childrens.clear();
-
-		return star_operator;
-	}
-
-	static AbstractRegexNode* create_node(istream& input, RegexBranchNode* parent)
-	{
-		int c = input.get();
-		string deb;
-		int_to_str(c, deb);
-		cout << "Creating node '" << deb << "'" << endl;
-
+		int c = input.peek();
 		switch (c) {
-		case '(':
-			return create_branch(input);
+		case '|':
+			return nullptr;
 		case ')':
 			return nullptr;
-		case '|':
-			parent->add_child(create_or_operator(input, parent));
-			return nullptr;
-		case '*':
-			parent->add_child(create_star_operator(input, parent));
-			return nullptr;
-		case EOF:
-			return nullptr;
 		case '\\':
+			input.get();
 			return create_antislash_command(input);
 		default:
+			input.get();
 			return new CharLeaf(c);
 		}
 	}
 
-	// Create a new branch
-	static RegexBranchNode* create_branch(istream& input)
+	static RegexBranchNode* parse_or(istream& input)
 	{
-		cout << "\nCreating branch" << endl;
+		RegexBranchNode* branch = new RegexBranchNode();
 
-		RegexBranchNode* parent = new RegexBranchNode();
-
-		while (true) {
-			AbstractRegexNode* node = create_node(input, parent);
-
-			if (node == nullptr) {
-				cout << "Creating branch exit\n" << endl;
-				return parent;
+		do {
+			RegexLeafNode* leaf = parse_branch(input);
+			if (leaf != nullptr) {
+				branch->add_child(leaf);
 			}
-
-			// cout << "created node: " << node->toString() << endl;
-			parent->add_child(node);
 		}
+		while (input.peek() != '|');
 
-		return parent;
+		return branch;
+	}
+
+	static OrOperator* parse_main(istream& input)
+	{
+		OrOperator* _or = new OrOperator();
+
+		do {
+			RegexBranchNode* branch = parse_or(input);
+			if (input.peek() == '|') {
+				input.get();
+				branch->add_child(branch);
+			}
+		}
+		while (input.peek() != EOF);
+
+		return _or;
 	}
 
 	static AbstractRegexNode* parse(istream& input)
 	{
-		AbstractRegexNode* root = create_branch(input);
+		RegexBranchNode* root = parse_main(input);
 
 		ofstream json_log("./data/parsed.json");
 		json_log << root->toString() << endl;
 
 		// clean: collapse all branch with 1 child
-		root = root->clean();
+		AbstractRegexNode* new_root = root->clean();
 
 		ofstream cleaned_json_log("./data/cleaned.json");
-		cleaned_json_log << root->toString() << endl;
+		cleaned_json_log << new_root->toString() << endl;
 
-		return root;
+		return new_root;
 	}
 
 	static void linearize(AbstractRegexNode* regex_root)
