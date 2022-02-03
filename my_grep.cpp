@@ -360,10 +360,12 @@ public:
 		}
 	}
 
-	static RegexLeafNode* parse_branch(istream& input)
+	static AbstractRegexNode* parse_leaf(istream& input)
 	{
 		int c = input.peek();
 		switch (c) {
+		case EOF:
+			return nullptr;
 		case '|':
 			return nullptr;
 		case ')':
@@ -371,46 +373,61 @@ public:
 		case '\\':
 			input.get();
 			return create_antislash_command(input);
+		case '(':
+			input.get();
+			return parse_or(input);
 		default:
 			input.get();
 			return new CharLeaf(c);
 		}
 	}
 
-	static RegexBranchNode* parse_or(istream& input)
+	static RegexBranchNode* parse_branch(istream& input)
 	{
 		RegexBranchNode* branch = new RegexBranchNode();
 
-		do {
-			RegexLeafNode* leaf = parse_branch(input);
+		while (true) {
+			AbstractRegexNode* leaf = parse_leaf(input);
 			if (leaf != nullptr) {
 				branch->add_child(leaf);
 			}
+			else {
+				return branch;
+			}
 		}
-		while (input.peek() != '|');
-
-		return branch;
 	}
 
-	static OrOperator* parse_main(istream& input)
+	static OrOperator* parse_or(istream& input)
 	{
 		OrOperator* _or = new OrOperator();
 
-		do {
-			RegexBranchNode* branch = parse_or(input);
-			if (input.peek() == '|') {
+		while (true) {
+			RegexBranchNode* branch = parse_branch(input);
+
+			int c = input.peek();
+
+			if (c == '|') {
 				input.get();
 				branch->add_child(branch);
 			}
+			else if (c == ')') {
+				input.get();
+				// Append branch to last option? 
+			}
+			else if (c == EOF) {
+				return _or;
+			}
+			else {
+				string str;
+				int_to_str(c, str);
+				throw RegexError("Unknown char: '" + str + "'", 0, input.tellg());
+			}
 		}
-		while (input.peek() != EOF);
-
-		return _or;
 	}
 
 	static AbstractRegexNode* parse(istream& input)
 	{
-		RegexBranchNode* root = parse_main(input);
+		RegexBranchNode* root = parse_or(input);
 
 		ofstream json_log("./data/parsed.json");
 		json_log << root->toString() << endl;
