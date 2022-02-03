@@ -303,29 +303,29 @@ public:
 		}
 	}
 
-	// Create an OrNode (convert parent to OrNode)
+	// Create an OrNode (take parent place and make him first opt)
 	static AbstractRegexNode* create_or_node(istream& input, RegexBranchNode* parent)
 	{
 		cout << "Creating OR node" << endl;
 
 		OrNode* or_node = new OrNode();
 
-		// Copy childrens of parent
-		or_node->childrens = parent->childrens;
-
-		// Clear childrens of parent so that it doesn't free on destruct
-		parent->childrens.clear();
-		delete parent;
-
-		// Replace parent->parent->last_child by OrNode
-		if (parent->parent == nullptr) {
-			throw RegexError("parent->parent is null, dev error, add a root node", 0, input.tellg());
+		// Replace grand parent child pointer to OrNode
+		RegexBranchNode* grandparent = (RegexBranchNode*)(parent->parent);
+		if (grandparent == nullptr) {
+			throw RegexError("grandparent is null, dev error, add a root node", 0, input.tellg());
 		}
-		AbstractRegexNode*& child_ref = ((RegexBranchNode*)parent->parent)->childrens.back();
-		if (child_ref == nullptr) {
-			throw RegexError("no previous node was found at create OrNode", 0, input.tellg());
+		if (grandparent->childrens.size() == 0) {
+			throw RegexError("granparent has no child", 0, input.tellg());
 		}
+		AbstractRegexNode*& child_ref = grandparent->childrens.back();
+		cout << "Replace grand parent pointer" << endl;
 		child_ref = or_node;
+
+		// Add parent as first opt
+		// replace parent->parent to or_node
+		cout << "Add parent" << endl;
+		or_node->add_child(parent);
 
 		// Add next options
 		do {
@@ -333,6 +333,7 @@ public:
 			// Simulate the presence of parenthesis at each '|' char (like: "(blable)|(bnieh)|(vrueb)")
 			RegexBranchNode* option = new RegexBranchNode();
 
+			cout << "Create new options" << endl;
 			create_nodes(input, option);
 
 			if (option->empty()) {
@@ -381,7 +382,7 @@ public:
 
 	static void create_nodes(istream& input, RegexBranchNode* parent)
 	{
-		cout << "\nCreating nodes, parent: " << parent->toString() << endl;
+		cout << "Creating nodes, parent: " << parent->toString() << endl;
 
 		if (parent == nullptr) {
 			throw RegexError("null parent at create_nodes", 0, input.tellg());
@@ -392,10 +393,16 @@ public:
 			node = create_node(input, parent);
 
 			if (node != nullptr) {
+				cout << "created node: " << node->toString() << endl;
 				parent->add_child(node);
+			}
+			else {
+				cout << "created node: null" << endl;
 			}
 		}
 		while (node != nullptr);
+
+		cout << "Creating nodes exit, Created: " << parent->toString() << "\n" << endl;
 	}
 
 	static RegexBranchNode parse(istream& input)
