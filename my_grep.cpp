@@ -40,6 +40,13 @@ void int_to_str(int result, string& output)
 	}
 }
 
+string int_to_str(int result)
+{
+	string str;
+	int_to_str(result, str);
+	return str;
+}
+
 string generate_json_str(string input)
 {
 	string str;
@@ -363,6 +370,8 @@ public:
 	static AbstractRegexNode* parse_leaf(istream& input)
 	{
 		int c = input.peek();
+		cout << "parse_leaf: " << int_to_str(c) << endl;
+
 		switch (c) {
 		case EOF:
 			return nullptr;
@@ -370,12 +379,12 @@ public:
 			return nullptr;
 		case ')':
 			return nullptr;
-		case '\\':
-			input.get();
-			return create_antislash_command(input);
 		case '(':
 			input.get();
 			return parse_or(input);
+		case '\\':
+			input.get();
+			return create_antislash_command(input);
 		default:
 			input.get();
 			return new CharLeaf(c);
@@ -385,6 +394,7 @@ public:
 	static RegexBranchNode* parse_branch(istream& input)
 	{
 		RegexBranchNode* branch = new RegexBranchNode();
+		cout << "parse_branch" << endl;
 
 		while (true) {
 			AbstractRegexNode* leaf = parse_leaf(input);
@@ -392,6 +402,7 @@ public:
 				branch->add_child(leaf);
 			}
 			else {
+				cout << "parse_branch exit" << endl;
 				return branch;
 			}
 		}
@@ -400,6 +411,7 @@ public:
 	static OrOperator* parse_or(istream& input)
 	{
 		OrOperator* _or = new OrOperator();
+		cout << "parse_or" << endl;
 
 		while (true) {
 			RegexBranchNode* branch = parse_branch(input);
@@ -408,19 +420,23 @@ public:
 
 			if (c == '|') {
 				input.get();
-				branch->add_child(branch);
+				cout << "add option: " << branch->toString() << endl;
+				_or->add_child(branch);
 			}
 			else if (c == ')') {
 				input.get();
-				// Append branch to last option? 
+				cout << "add option: " << branch->toString() << endl;
+				_or->add_child(branch);
+				return _or;
 			}
 			else if (c == EOF) {
+				input.get();
+				cout << "add option: " << branch->toString() << endl;
+				_or->add_child(branch);
 				return _or;
 			}
 			else {
-				string str;
-				int_to_str(c, str);
-				throw RegexError("Unknown char: '" + str + "'", 0, input.tellg());
+				throw RegexError("Unknown char: '" + int_to_str(c) + "'", 0, input.tellg());
 			}
 		}
 	}
@@ -434,6 +450,10 @@ public:
 
 		// clean: collapse all branch with 1 child
 		AbstractRegexNode* new_root = root->clean();
+
+		if (new_root == nullptr) {
+			throw RegexError("new_root null", 0, 0);
+		}
 
 		ofstream cleaned_json_log("./data/cleaned.json");
 		cleaned_json_log << new_root->toString() << endl;
