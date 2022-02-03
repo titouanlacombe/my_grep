@@ -371,17 +371,18 @@ public:
 		// Add first opt
 		or_operator->add_child(first_option);
 
-		// Add next options
-		do {
-			RegexBranchNode* option = create_branch(input);
-
-			if (option->empty()) {
-				throw RegexError("empty regex after OR | operator", 0, input.tellg());
-			}
-
-			or_operator->add_child(option);
+		// Parse the rest of the regex
+		RegexBranchNode* rest = create_branch(input);
+		if (rest->empty()) {
+			throw RegexError("empty regex after OR | operator", 0, input.tellg());
 		}
-		while (input.peek() == '|' && input.get());
+
+		// Add the generated childs to OR op
+		for (AbstractRegexNode* child : rest->childrens) {
+			or_operator->childrens.push_back(child);
+		}
+		rest->childrens.clear();
+		delete rest;
 
 		cout << "Creating OR operator exit\n" << endl;
 
