@@ -416,7 +416,8 @@ public:
 
 		create_nodes(input, main);
 
-		cout << "Parsed:\n" << root.toString() << endl;
+		ofstream json_log("./parsed.json");
+		json_log << root.toString() << endl;
 
 		return root;
 	}
