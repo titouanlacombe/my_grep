@@ -135,8 +135,6 @@ public:
 class AbstractRegexNode
 {
 public:
-	AbstractRegexNode* parent = nullptr;
-
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
 	virtual AbstractRegexNode* clean() = 0;
@@ -159,8 +157,14 @@ public:
 
 	void add_child(AbstractRegexNode* _child)
 	{
-		_child->parent = this;
 		childrens.push_back(_child);
+	}
+
+	void add_childs(list<AbstractRegexNode*> _childs)
+	{
+		for (AbstractRegexNode* child : _childs) {
+			add_child(child);
+		}
 	}
 
 	bool empty()
@@ -365,13 +369,13 @@ public:
 
 		// moving childs from parent to first option
 		RegexBranchNode* first_option = new RegexBranchNode();
-		first_option->childrens = parent->childrens;
+		first_option->add_childs(parent->childrens);
 		parent->childrens.clear();
 
 		// Add first opt
 		or_operator->add_child(first_option);
 
-		// Parse the rest of the regex
+		// Parse the rest of the branch
 		RegexBranchNode* rest = create_branch(input);
 		if (rest->empty()) {
 			throw RegexError("empty regex after OR | operator", 0, input.tellg());
@@ -379,7 +383,7 @@ public:
 
 		// Add the generated childs to OR op
 		for (AbstractRegexNode* child : rest->childrens) {
-			or_operator->childrens.push_back(child);
+			or_operator->add_child(child);
 		}
 		rest->childrens.clear();
 		delete rest;
@@ -396,7 +400,7 @@ public:
 		KleenStarOperator* star_operator = new KleenStarOperator();
 
 		// moving childs from parent to star op
-		// star_operator->childrens = parent->childrens;
+		// star_operator->add_childs(parent->childrens);
 		// parent->childrens.clear();
 
 		return star_operator;
