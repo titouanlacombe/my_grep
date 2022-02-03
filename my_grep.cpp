@@ -194,7 +194,17 @@ public:
 			child = child->clean();
 		}
 
-		// TODO: filter null childs
+		// filter out null childs
+		auto it = childrens.begin();
+		while (it != childrens.end()) {
+			if (*it == nullptr) {
+				it = childrens.erase(it);
+			}
+			else {
+				it++;
+			}
+		}
+
 
 		if (childrens.size() > 1) {
 			return this;
@@ -437,7 +447,7 @@ public:
 		ofstream json_log("./data/parsed.json");
 		json_log << root->toString() << endl;
 
-		// clean: replace all branch with 1 child by there child
+		// clean: collapse all branch with 1 child
 		root = root->clean();
 
 		ofstream cleaned_json_log("./data/cleaned.json");
