@@ -8,6 +8,9 @@
 #include <chrono>
 
 #define CHAR_MAX 256
+#define STAR_CHAR '*'
+#define OR_CHAR '|'
+#define ANY_CHAR '.'
 
 using namespace std;
 using namespace std::chrono;
@@ -291,19 +294,28 @@ public:
 };
 
 // Node wich match any number of character
-class KleenStarOperator : public RegexLeafNode
+class KleenStarOperator : public RegexBranchNode
 {
 public:
-	RegexBranchNode* child;
-
 	virtual string toString()
 	{
-		return generate_json_key("Kleen star") + child->toString();
+		return generate_json_key("Kleen star") + RegexBranchNode::toString();
 	}
 
-	virtual void linearize(int ids_cache[CHAR_MAX])
+	virtual AbstractRegexNode* clean()
 	{
-		child->linearize(ids_cache);
+		if (childrens.size() != 1) {
+			throw RegexError("Parse error: kleen star has pultiples or 0 childrens", 0, 0);
+		}
+		childrens.front() = childrens.front()->clean();
+
+		// If children is empty
+		if (childrens.front() == nullptr) {
+			delete this;
+			return nullptr;
+		}
+
+		return this;
 	}
 };
 
@@ -313,57 +325,32 @@ class OrOperator : public RegexBranchNode
 public:
 	virtual string toString()
 	{
-		string str = generate_json_key("OR") + "[\n";
-
-		for (AbstractRegexNode* option : childrens) {
-			str += option->toString();
-			if (option != childrens.back()) {
-				str += ",";
-			}
-			str += "\n";
-		}
-
-		return str + "]";
-	}
-
-	virtual void linearize(int ids_cache[CHAR_MAX])
-	{
-		for (AbstractRegexNode* option : childrens) {
-			option->linearize(ids_cache);
-		}
+		return generate_json_key("OR") + RegexBranchNode::toString();
 	}
 };
+
+#define CHAR_LEAF_CASE(x) case(x): return new CharLeaf(x)
 
 class RegexFactory
 {
 public:
-	// create spécial nodes after a '\'	char: \n \t etc...
+	// create special nodes after a '\'	char: \n \t etc...
 	static RegexLeafNode* create_antislash_command(istream& input)
 	{
 		int c = input.get();
 		// cout << "Creating Antislash node '" << int_to_str(c) << "'" << endl;
 
 		switch (c) {
-		case 't':
-			return new CharLeaf('\t');
-		case 'n':
-			return new CharLeaf('\n');
-		case '\\':
-			return new CharLeaf('\\');
-		case '|':
-			return new CharLeaf('|');
-		case '\"':
-			return new CharLeaf('\"');
-		case '\'':
-			return new CharLeaf('\'');
-		case '(':
-			return new CharLeaf('(');
-		case ')':
-			return new CharLeaf(')');
-		case '*':
-			return new CharLeaf('*');
-		case '.':
-			return new CharLeaf('.');
+		case 't': return new CharLeaf('\t');
+		case 'n': return new CharLeaf('\n');
+			CHAR_LEAF_CASE(OR_CHAR);
+			CHAR_LEAF_CASE(STAR_CHAR);
+			CHAR_LEAF_CASE(ANY_CHAR);
+			CHAR_LEAF_CASE(')');
+			CHAR_LEAF_CASE('(');
+			CHAR_LEAF_CASE('\\');
+			CHAR_LEAF_CASE('\"');
+			CHAR_LEAF_CASE('\'');
 		case EOF:
 			throw RegexError("EOF Reached after '\\' char", 0, input.tellg());
 		default:
@@ -377,21 +364,47 @@ public:
 		// cout << "parse_leaf: " << int_to_str(c) << endl;
 
 		switch (c) {
-		case EOF:
-			return nullptr;
-		case '|':
-			return nullptr;
-		case ')':
-			return nullptr;
+		case EOF: return nullptr;
+		case OR_CHAR: return nullptr;
+		case STAR_CHAR: return nullptr;
+		case ')': return nullptr;
 		case '(':
 			input.get();
 			return parse_or(input);
 		case '\\':
 			input.get();
 			return create_antislash_command(input);
+		case ANY_CHAR:
+			input.get();
+			return new AnyLeaf();
 		default:
 			input.get();
 			return new CharLeaf(c);
+		}
+	}
+
+	static AbstractRegexNode* parse_star(istream& input)
+	{
+		// Create leaf
+		AbstractRegexNode* leaf = parse_leaf(input);
+
+		// If there is a star operator
+		if (input.peek() == STAR_CHAR) {
+			if (leaf == nullptr) {
+				throw RegexError(
+					string("no expression before ") +
+					STAR_CHAR + " operator", 0, input.tellg()
+				);
+			}
+
+			input.get();
+
+			KleenStarOperator* star = new KleenStarOperator();
+			star->add_child(leaf);
+			return star;
+		}
+		else {
+			return leaf;
 		}
 	}
 
@@ -401,7 +414,7 @@ public:
 		// cout << "parse_branch" << endl;
 
 		while (true) {
-			AbstractRegexNode* leaf = parse_leaf(input);
+			AbstractRegexNode* leaf = parse_star(input);
 			if (leaf != nullptr) {
 				// TODO: Check star op
 				branch->add_child(leaf);
@@ -424,7 +437,7 @@ public:
 			);
 
 			int c = input.get();
-			if (c != '|') {
+			if (c != OR_CHAR) {
 				return _or;
 			}
 		}
