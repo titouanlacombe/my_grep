@@ -270,7 +270,7 @@ public:
 
 	virtual string toString()
 	{
-		return generate_json_key("Char") + generate_json_str(string(1, character));
+		return generate_json_key(string("Char ") + character) + to_string(glushkov_id);
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
@@ -330,6 +330,12 @@ public:
 };
 
 #define CHAR_LEAF_CASE(x) case(x): return new CharLeaf(x)
+
+void log_node_tree(string path, AbstractRegexNode* root)
+{
+	ofstream json_log(path);
+	json_log << root->toString();
+}
 
 class RegexParser
 {
@@ -447,8 +453,7 @@ public:
 	{
 		RegexBranchNode* root = parse_or(input);
 
-		ofstream json_log("./data/parsed.json");
-		json_log << root->toString() << endl;
+		log_node_tree("./data/parsed.json", root);
 
 		// clean: collapse all branch with 1 child
 		AbstractRegexNode* new_root = root->clean();
@@ -457,8 +462,7 @@ public:
 			throw RegexError("new_root null", 0, 0);
 		}
 
-		ofstream cleaned_json_log("./data/cleaned.json");
-		cleaned_json_log << new_root->toString() << endl;
+		log_node_tree("./data/cleaned.json", new_root);
 
 		return new_root;
 	}
@@ -472,6 +476,8 @@ public:
 		int ids_cache[CHAR_MAX] = { 0 };
 
 		regex_root->linearize(ids_cache);
+
+		log_node_tree("./data/linearized.json", regex_root);
 	}
 
 	static void glushkov(AbstractRegexNode* regex_root)
