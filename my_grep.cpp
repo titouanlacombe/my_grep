@@ -586,7 +586,8 @@ public:
 	// https://en.wikipedia.org/wiki/Glushkov%27s_construction_algorithm
 	static void glushkov(AbstractRegexNode* regex_root)
 	{
-		// Step 1
+		// Step 1 (uneeded because each node is already unique)
+		// TODO: remove ?
 		linearize(regex_root);
 
 		// Step 2a
