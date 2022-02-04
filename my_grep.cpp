@@ -6,6 +6,7 @@
 #include <list>
 #include <vector>
 #include <chrono>
+#include <map>
 
 #define CHAR_MAX 256
 #define STAR_CHAR '*'
@@ -142,9 +143,14 @@ public:
 };
 
 // Abstract Node & Leaf of a regex tree
+typedef vector<AbstractRegexNode*> node_vec;
+
 class AbstractRegexNode
 {
 public:
+	virtual string get_class() = 0;
+	virtual bool is_branch() = 0;
+
 	virtual string toString() = 0;
 	virtual AbstractRegexNode* clean() = 0;
 
@@ -154,7 +160,7 @@ public:
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
 	virtual list<AbstractRegexNode*> get_start_chars() = 0;
 	virtual list<AbstractRegexNode*> get_end_chars() = 0;
-	virtual list<AbstractRegexNode*> get_mid_chars() = 0;
+	virtual list<node_vec> get_mid_chars() = 0;
 };
 
 // Node of a regex tree wich is not a leaf
@@ -169,6 +175,16 @@ public:
 		for (AbstractRegexNode* child : childrens) {
 			delete child;
 		}
+	}
+
+	virtual string get_class()
+	{
+		return "RegexBranchNode";
+	}
+
+	virtual bool is_branch()
+	{
+		return true;
 	}
 
 	void add_child(AbstractRegexNode* _child)
@@ -251,13 +267,23 @@ public:
 		return childrens.back()->get_end_chars();
 	}
 
-	virtual list<AbstractRegexNode*> get_mid_chars()
+	virtual list<node_vec> get_mid_chars()
 	{
-		list<AbstractRegexNode*> _list;
+		list<node_vec> _list;
 
 		for (AbstractRegexNode* child : childrens) {
-			// Extend list with the result of child->get_mid_chars()
-			_list.splice(_list.end(), child->get_mid_chars());
+			if (child->is_branch()) {
+				// Extend list with the result of child->get_mid_chars()
+				_list.splice(_list.end(), child->get_mid_chars());
+			}
+			else {
+				node_vec pair;
+				// Before c
+				// pair.push_back();
+				// After c
+				// pair.push_back();
+				_list.push_back(pair);
+			}
 		}
 
 		return _list;
@@ -270,6 +296,16 @@ class RegexLeafNode : public AbstractRegexNode
 public:
 	virtual string toString() = 0;
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+
+	virtual string get_class()
+	{
+		return "RegexLeafNode";
+	}
+
+	virtual bool is_branch()
+	{
+		return false;
+	}
 
 	bool empty()
 	{
@@ -295,11 +331,9 @@ public:
 		return _list;
 	}
 
-	virtual list<AbstractRegexNode*> get_mid_chars()
+	virtual list<node_vec> get_mid_chars()
 	{
-		list<AbstractRegexNode*> _list;
-		_list.push_back(this);
-		return _list;
+		throw RegexError("get_mid_chars called on leaf", 0, 0);
 	}
 };
 
@@ -317,6 +351,11 @@ public:
 		character = c;
 	}
 
+	virtual string get_class()
+	{
+		return "CharLeaf";
+	}
+
 	virtual string toString()
 	{
 		return generate_json_key(string("Char ") + character) + to_string(glushkov_id);
@@ -325,7 +364,6 @@ public:
 	virtual void linearize(int ids_cache[CHAR_MAX])
 	{
 		glushkov_id = ids_cache[character]++;
-		// cout << "(letter: " << character << ", id: " << glushkov_id << "), ";
 	}
 };
 
@@ -333,6 +371,11 @@ public:
 class AnyLeaf : public RegexLeafNode
 {
 public:
+	virtual string get_class()
+	{
+		return "AnyLeaf";
+	}
+
 	virtual string toString()
 	{
 		return generate_json_str("Any char");
@@ -346,6 +389,11 @@ public:
 class KleenStarOperator : public RegexBranchNode
 {
 public:
+	virtual string get_class()
+	{
+		return "KleenStarOperator";
+	}
+
 	virtual string toString()
 	{
 		return generate_json_key("Kleen star") + RegexBranchNode::toString();
@@ -372,6 +420,11 @@ public:
 class OrOperator : public RegexBranchNode
 {
 public:
+	virtual string get_class()
+	{
+		return "OrOperator";
+	}
+
 	virtual string toString()
 	{
 		return generate_json_key("OR") + RegexBranchNode::toString();
@@ -537,7 +590,14 @@ public:
 		// Step 2a
 		list<AbstractRegexNode*> starting_chars = regex_root->get_start_chars();
 		list<AbstractRegexNode*> ending_chars = regex_root->get_end_chars();
-		list<AbstractRegexNode*> middle_chars = regex_root->get_mid_chars();
+		list<node_vec> middle_chars = regex_root->get_mid_chars();
+
+		// Step 2b
+
+		// Step 3
+
+		// Step 4
+
 	}
 };
 
