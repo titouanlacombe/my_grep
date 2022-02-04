@@ -146,9 +146,15 @@ class AbstractRegexNode
 {
 public:
 	virtual string toString() = 0;
-	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
 	virtual AbstractRegexNode* clean() = 0;
+
 	virtual bool empty() = 0;
+
+	// For glushkov
+	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
+	virtual list<AbstractRegexNode*> get_start_chars();
+	virtual list<AbstractRegexNode*> get_end_chars();
+	virtual list<AbstractRegexNode*> get_mid_chars();
 };
 
 // Node of a regex tree wich is not a leaf
@@ -234,6 +240,28 @@ public:
 		delete this;
 		return child;
 	}
+
+	virtual list<AbstractRegexNode*> get_start_chars()
+	{
+		return childrens.front()->get_start_chars();
+	}
+
+	virtual list<AbstractRegexNode*> get_end_chars()
+	{
+		return childrens.back()->get_end_chars();
+	}
+
+	virtual list<AbstractRegexNode*> get_mid_chars()
+	{
+		list<AbstractRegexNode*> _list;
+
+		for (AbstractRegexNode* child : childrens) {
+			// Extend list with the result of child->get_mid_chars()
+			_list.splice(_list.end(), child->get_mid_chars());
+		}
+
+		return _list;
+	}
 };
 
 // Node of a regex tree wich is a leaf
@@ -251,6 +279,27 @@ public:
 	virtual AbstractRegexNode* clean()
 	{
 		return this;
+	}
+
+	virtual list<AbstractRegexNode*> get_start_chars()
+	{
+		list<AbstractRegexNode*> _list;
+		_list.push_back(this);
+		return _list;
+	}
+
+	virtual list<AbstractRegexNode*> get_end_chars()
+	{
+		list<AbstractRegexNode*> _list;
+		_list.push_back(this);
+		return _list;
+	}
+
+	virtual list<AbstractRegexNode*> get_mid_chars()
+	{
+		list<AbstractRegexNode*> _list;
+		_list.push_back(this);
+		return _list;
 	}
 };
 
@@ -473,16 +522,22 @@ class RegexCompiler
 public:
 	static void linearize(AbstractRegexNode* regex_root)
 	{
+		// Initing ids cache
 		int ids_cache[CHAR_MAX] = { 0 };
-
 		regex_root->linearize(ids_cache);
-
 		log_node_tree("./data/linearized.json", regex_root);
 	}
 
+	// https://en.wikipedia.org/wiki/Glushkov%27s_construction_algorithm
 	static void glushkov(AbstractRegexNode* regex_root)
 	{
+		// Step 1
 		linearize(regex_root);
+
+		// Step 2a
+		list<AbstractRegexNode*> starting_chars = regex_root->get_start_chars();
+		list<AbstractRegexNode*> ending_chars = regex_root->get_end_chars();
+		list<AbstractRegexNode*> middle_chars = regex_root->get_mid_chars();
 	}
 };
 
