@@ -152,9 +152,9 @@ public:
 
 	// For glushkov
 	virtual void linearize(int ids_cache[CHAR_MAX]) = 0;
-	virtual list<AbstractRegexNode*> get_start_chars();
-	virtual list<AbstractRegexNode*> get_end_chars();
-	virtual list<AbstractRegexNode*> get_mid_chars();
+	virtual list<AbstractRegexNode*> get_start_chars() = 0;
+	virtual list<AbstractRegexNode*> get_end_chars() = 0;
+	virtual list<AbstractRegexNode*> get_mid_chars() = 0;
 };
 
 // Node of a regex tree wich is not a leaf
