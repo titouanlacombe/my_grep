@@ -382,7 +382,9 @@ public:
 	}
 
 	virtual void linearize(int ids_cache[CHAR_MAX])
-	{}
+	{
+		// Do nothing
+	}
 };
 
 // Node wich match any number of character
