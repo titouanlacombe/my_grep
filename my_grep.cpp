@@ -331,7 +331,7 @@ public:
 
 #define CHAR_LEAF_CASE(x) case(x): return new CharLeaf(x)
 
-class RegexFactory
+class RegexParser
 {
 public:
 	// create special nodes after a '\'	char: \n \t etc...
@@ -462,7 +462,11 @@ public:
 
 		return new_root;
 	}
+};
 
+class RegexCompiler
+{
+public:
 	static void linearize(AbstractRegexNode* regex_root)
 	{
 		int ids_cache[CHAR_MAX] = { 0 };
@@ -474,21 +478,25 @@ public:
 	{
 		linearize(regex_root);
 	}
+};
 
+class RegexFactory
+{
+public:
 	// Regex factory
 	static AbstractRegexNode* from_cstr(const char* str)
 	{
 		stringstream input(str);
 
 		// Parse the string regex into a node tree
-		AbstractRegexNode* root = parse(input);
+		AbstractRegexNode* root = RegexParser::parse(input);
 
 		if (root->empty()) {
 			throw RegexError("Empty regex", 0, input.tellg());
 		}
 
 		// Convert the node tree into a compiled automaton
-		glushkov(root);
+		RegexCompiler::glushkov(root);
 
 		// cout << "Raw: '" << str << "'" << endl;
 
